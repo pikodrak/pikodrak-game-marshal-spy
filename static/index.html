@@ -95,6 +95,21 @@ canvas{flex:1;display:block;min-height:0;width:100%}
 .unit-card .atk{color:var(--gold);font-family:var(--font-head);font-size:12px}
 .unit-card.placed{opacity:.5}
 
+/* Manual */
+.manual-section{background:var(--panel);border:1px solid var(--border);padding:16px;margin-bottom:12px;position:relative}
+.manual-section::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+.manual-section h2{font-family:var(--font-head);color:var(--accent);font-size:13px;letter-spacing:2px;margin-bottom:8px}
+.manual-section p{font-size:12px;line-height:1.6;margin-bottom:6px}
+.manual-section ul{font-size:12px;line-height:1.8;padding-left:16px}
+.manual-section li{margin:2px 0}
+.manual-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
+.manual-table th{color:var(--accent);text-align:left;padding:4px 6px;border-bottom:1px solid var(--border);font-family:var(--font-head);font-size:10px;letter-spacing:1px}
+.manual-table td{padding:4px 6px;border-bottom:1px solid #0d1225}
+.manual-table tr:hover td{background:rgba(0,229,255,.03)}
+.manual-board{margin:8px 0}
+.mb-row{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12px}
+.mb-zone{display:inline-block;width:80px;text-align:center;padding:3px 6px;font-size:10px;font-family:var(--font-head);letter-spacing:1px;color:#fff;border:1px solid var(--border)}
+
 /* Overlay */
 #overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.9);z-index:100;align-items:center;justify-content:center;flex-direction:column;gap:16px}
 #overlay.active{display:flex}
@@ -169,9 +184,137 @@ canvas{flex:1;display:block;min-height:0;width:100%}
       <div id="email-msg" style="font-size:11px;margin-top:4px"></div>
       <div style="margin-top:10px;display:flex;gap:8px">
         <a style="color:var(--accent2);cursor:pointer;font-size:11px" onclick="logout()">LOGOUT</a>
+        <a style="color:var(--accent);cursor:pointer;font-size:11px" onclick="showScreen('manual')">HOW TO PLAY</a>
         <a href="/static/changelog.html" target="_blank" style="color:var(--text-dim);font-size:11px">CHANGELOG</a>
       </div>
     </div>
+  </div>
+</div>
+</div>
+
+<!-- MANUAL -->
+<div id="manual-screen" class="screen" style="overflow-y:auto;align-items:flex-start;justify-content:flex-start;padding:20px">
+<div style="max-width:700px;margin:0 auto;width:100%">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h1 style="font-family:var(--font-head);color:var(--accent);font-size:20px;letter-spacing:3px">HOW TO PLAY</h1>
+    <button class="btn" onclick="showScreen('lobby')">BACK</button>
+  </div>
+
+  <div class="manual-section">
+    <h2>OBJECTIVE</h2>
+    <p>Capture the enemy <b style="color:var(--accent2)">citadel</b> with a ground unit. First player to do so wins.</p>
+  </div>
+
+  <div class="manual-section">
+    <h2>THE BOARD</h2>
+    <p>Diamond-shaped hexagonal grid with 153 hexes. Each player has:</p>
+    <div class="manual-board">
+      <div class="mb-row"><span class="mb-zone" style="background:#2a0a0a">CITADEL</span> Your base. Defend it!</div>
+      <div class="mb-row"><span class="mb-zone" style="background:#0a1a2a">LEVEL 0</span> Defensive zone. +0 attack bonus.</div>
+      <div class="mb-row"><span class="mb-zone" style="background:#0a2a1a">LEVEL 1</span> Mid zone. +1 attack bonus.</div>
+      <div class="mb-row"><span class="mb-zone" style="background:#2a2a0a">LEVEL 2</span> Forward zone. +2 attack bonus.</div>
+      <div class="mb-row"><span class="mb-zone" style="background:#121820">BATTLEFIELD</span> Neutral ground. Mountains block ground movement.</div>
+    </div>
+    <p style="margin-top:8px">Your territory is always at the <b>bottom</b>, enemy at the <b>top</b>.</p>
+  </div>
+
+  <div class="manual-section">
+    <h2>DEPLOYMENT PHASE</h2>
+    <p>Place all 23 units into your Level zones (not citadel, not battlefield).</p>
+    <ul>
+      <li>Click a unit in the side panel, then click a hex to place it</li>
+      <li>Or use <b style="color:var(--accent)">RANDOM DEPLOY</b> to auto-place everything</li>
+      <li>Higher levels give bigger attack bonus but have unit limits</li>
+      <li>Max 1 Assassin and 1 Terminator per level</li>
+      <li>Artillery can only go to Level 0</li>
+    </ul>
+  </div>
+
+  <div class="manual-section">
+    <h2>BATTLE PHASE</h2>
+    <p>Players alternate turns. Each turn: <b>one action</b> — Move, Attack, Special, or Pass.</p>
+    <ul>
+      <li><b style="color:var(--green)">Green hexes</b> — valid movement targets</li>
+      <li><b style="color:var(--accent2)">Red hexes</b> — attack targets</li>
+      <li><b style="color:var(--accent)">Blue hexes</b> — special ability targets</li>
+    </ul>
+  </div>
+
+  <div class="manual-section">
+    <h2>UNITS</h2>
+    <table class="manual-table">
+      <tr><th>Unit</th><th>ATK</th><th>MOV</th><th>Type</th><th>Special</th></tr>
+      <tr><td>Engineer</td><td>1</td><td>1</td><td>Ground</td><td>Conceals allies, defuses mines</td></tr>
+      <tr><td>Scout</td><td>2</td><td>2</td><td>Ground</td><td>Fast recon</td></tr>
+      <tr><td>Private</td><td>3</td><td>1</td><td>Ground</td><td>Basic infantry (x3)</td></tr>
+      <tr><td>Paratrooper</td><td>4</td><td>1</td><td>Ground</td><td>Airborne (x2)</td></tr>
+      <tr><td>Tank</td><td>5</td><td>1</td><td>Ground</td><td>Heavy armor (x2)</td></tr>
+      <tr><td>Terminator</td><td>6</td><td>1</td><td>Ground</td><td>Max 1 per level</td></tr>
+      <tr><td>Assassin</td><td>8</td><td>1</td><td>Ground</td><td>Kills all, but dies when attacked!</td></tr>
+      <tr><td>Helicopter</td><td>3</td><td>2</td><td>Air</td><td>Attacks ground safely, flies over mountains</td></tr>
+      <tr><td>Fighter</td><td>5</td><td>4</td><td>Air</td><td>Air-to-air only, ranged</td></tr>
+      <tr><td>Recon Drone</td><td>1</td><td>1</td><td>Special</td><td>Reveals hidden enemies</td></tr>
+      <tr><td>Attack Drone</td><td>4</td><td>1</td><td>Special</td><td>Ranged attack (ground + air)</td></tr>
+      <tr><td>Trainer</td><td>1</td><td>1</td><td>Special</td><td>Boosts ally attack +1</td></tr>
+      <tr><td>Corruptor</td><td>1</td><td>1</td><td>Special</td><td>Weakens enemy attack -1</td></tr>
+      <tr><td>Jammer</td><td>1</td><td>1</td><td>Special</td><td>Prevents reveals nearby</td></tr>
+      <tr><td>Mine</td><td>99</td><td>0</td><td>Special</td><td>Kills ground on contact (x2)</td></tr>
+      <tr><td>Artillery</td><td>6</td><td>0</td><td>Special</td><td>Ranged ground, Level 0 only</td></tr>
+    </table>
+    <p style="margin-top:8px">All ranged abilities: range = <b>2 + placement level</b></p>
+  </div>
+
+  <div class="manual-section">
+    <h2>COMBAT</h2>
+    <ul>
+      <li><b>Melee:</b> Higher attack wins. Equal = both die. Winner moves to target hex.</li>
+      <li><b>Ranged:</b> If attacker &ge; target: kill. If less: miss. Attacker always safe.</li>
+      <li><b>Helicopter vs Ground:</b> Helicopter attacks without risk. Can't kill stronger, but survives.</li>
+      <li><b>Assassin:</b> Attack 8 — devastating. But dies to ANY ground unit when defending!</li>
+      <li><b>Mine:</b> Ground unit walks on it = both destroyed. Engineer defuses safely.</li>
+    </ul>
+  </div>
+
+  <div class="manual-section">
+    <h2>FOG OF WAR</h2>
+    <ul>
+      <li>All units start <b>hidden</b> — enemy sees position but not type</li>
+      <li>Units revealed during combat (both sides)</li>
+      <li><b>Jammer</b> prevents reveals in its area</li>
+      <li><b>Recon Drone</b> reveals enemies at range</li>
+      <li><b>Engineer</b> can re-hide revealed allies</li>
+    </ul>
+  </div>
+
+  <div class="manual-section">
+    <h2>CONTROLS</h2>
+    <table class="manual-table">
+      <tr><th>Action</th><th>Desktop</th><th>Mobile</th></tr>
+      <tr><td>Select / Act</td><td>Left click</td><td>Tap</td></tr>
+      <tr><td>Pan map</td><td>Left drag</td><td>One finger drag</td></tr>
+      <tr><td>Zoom</td><td>Scroll wheel</td><td>Pinch</td></tr>
+      <tr><td>Cancel</td><td>Escape</td><td>CANCEL button</td></tr>
+      <tr><td>Reset view</td><td>Home key</td><td>—</td></tr>
+      <tr><td>Fullscreen</td><td>&#x26F6; button</td><td>&#x26F6; button</td></tr>
+    </table>
+  </div>
+
+  <div class="manual-section">
+    <h2>STRATEGY TIPS</h2>
+    <ul>
+      <li><b>Level 2</b> gives +2 attack but limits specials — plan your placement!</li>
+      <li><b>Scout with Recon</b> before attacking — know what you're fighting</li>
+      <li><b>Protect Assassin</b> — attack 10 at L2, but dies to anything on defense</li>
+      <li><b>Jammer + army</b> — enemy can't scout your hidden units</li>
+      <li><b>Mines near citadel</b> stop enemy rushes</li>
+      <li><b>Trainer boost</b> key units before battle — permanent +1 each time</li>
+      <li><b>Rush:</b> All combat units at L2, push fast before enemy sets up</li>
+      <li><b>Turtle:</b> Mines, artillery, jammer at L0, strong defenders near citadel</li>
+    </ul>
+  </div>
+
+  <div style="text-align:center;margin:20px 0">
+    <button class="btn primary" onclick="showScreen('lobby')" style="padding:12px 40px;font-size:14px">BACK TO LOBBY</button>
   </div>
 </div>
 </div>
