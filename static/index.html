@@ -16,7 +16,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font-mono);ov
 #app{display:flex;height:100%;width:100%}
 
 /* --- Screens --- */
-.screen{display:none;width:100%;height:100%;align-items:center;justify-content:center}
+.screen{display:none;width:100%;height:100%;align-items:center;justify-content:center;overflow-y:auto}
 .screen.active{display:flex}
 
 /* Auth */
@@ -39,7 +39,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font-mono);ov
 .btn.danger:hover{background:rgba(255,61,61,.1)}
 
 /* Lobby */
-.lobby-wrap{display:flex;flex-direction:column;gap:16px;width:520px}
+.lobby-wrap{display:flex;flex-direction:column;gap:16px;width:520px;max-width:95%}
 .lobby-box{background:var(--panel);border:1px solid var(--border);padding:20px;position:relative}
 .lobby-box::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
 .lobby-box h2{font-family:var(--font-head);color:var(--accent);font-size:14px;letter-spacing:2px;margin-bottom:12px}
@@ -75,13 +75,43 @@ canvas{flex:1;display:block;min-height:0;width:100%}
 #top-bar .phase{color:var(--gold)}
 #action-bar{height:38px;min-height:38px;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:6px}
 
-/* Mobile: auto-hide panel, compact bars */
+/* Mobile */
 @media(max-width:700px){
-  #side-panel{width:0;min-width:0;opacity:0;padding:0;border-left:none;pointer-events:none}
-  #side-panel.shown{width:240px;min-width:240px;opacity:1;padding:10px;border-left:1px solid var(--border);pointer-events:auto;position:absolute;right:0;top:0;bottom:0;z-index:20;background:var(--panel)}
-  #top-bar{height:28px;min-height:28px;padding:0 6px;gap:6px;font-size:10px}
+  /* Auth */
+  .auth-box{width:90%;max-width:360px;padding:24px 20px}
+  .auth-box h1{font-size:18px;letter-spacing:2px}
+
+  /* Lobby */
+  .lobby-wrap{width:95%;max-width:400px;gap:10px}
+  .lobby-box{padding:12px}
+  .lobby-box h2{font-size:12px;margin-bottom:8px}
+  .btn-row{gap:4px}
+  .game-list{max-height:120px}
+
+  /* Game bars */
+  #top-bar{height:28px;min-height:28px;padding:0 4px;gap:4px;font-size:9px}
+  #top-bar .turn{font-size:9px;letter-spacing:0}
   #action-bar{height:34px;min-height:34px;gap:4px}
-  .btn{padding:5px 10px;font-size:10px}
+  .btn{padding:5px 8px;font-size:9px;letter-spacing:0}
+
+  /* Side panel: hidden by default, overlay when shown */
+  #side-panel{display:none}
+  #side-panel.shown{display:flex;width:75vw;max-width:260px;position:fixed;right:0;top:0;bottom:0;z-index:50;background:var(--panel);border-left:1px solid var(--border);box-shadow:-4px 0 20px rgba(0,0,0,.5)}
+
+  /* Overlay dialog */
+  #overlay>div{padding:20px;max-width:90%}
+
+  /* Manual */
+  #manual-screen{padding:10px}
+  #manual-screen>div{max-width:100%}
+  .manual-section{padding:10px}
+  .manual-section h2{font-size:11px}
+  .manual-section p,.manual-section li{font-size:11px}
+  .manual-table{font-size:9px}
+  .manual-table th{font-size:8px}
+  .manual-table td,.manual-table th{padding:3px 4px}
+  .mb-zone{width:60px;font-size:8px;padding:2px 4px}
+  .mb-row{font-size:10px}
 }
 
 /* Unit cards */
@@ -139,8 +169,8 @@ canvas{flex:1;display:block;min-height:0;width:100%}
 </div>
 
 <!-- LOBBY -->
-<div id="lobby-screen" class="screen">
-<div class="lobby-wrap">
+<div id="lobby-screen" class="screen" style="align-items:flex-start;justify-content:flex-start;padding:16px 0">
+<div class="lobby-wrap" style="margin:0 auto">
   <div class="lobby-box">
     <h2>DEPLOY</h2>
     <div class="btn-row">
@@ -148,6 +178,7 @@ canvas{flex:1;display:block;min-height:0;width:100%}
       <button class="btn primary" onclick="newGame('online')">ONLINE PVP</button>
       <button class="btn primary" onclick="newGame('hotseat')">HOT-SEAT</button>
     </div>
+    <button class="btn" onclick="showScreen('manual')" style="width:100%;margin-top:10px;border-color:var(--gold);color:var(--gold)">&#9881; HOW TO PLAY</button>
   </div>
   <div class="lobby-box">
     <h2>ACTIVE OPS</h2>
