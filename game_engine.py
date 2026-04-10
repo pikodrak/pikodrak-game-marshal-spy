@@ -36,20 +36,26 @@ def hex_distance(c1: int, r1: int, c2: int, r2: int) -> int:
     return max(abs(x1 - x2), abs(y1 - y2), abs(z1 - z2))
 
 
+def _battlefield_shrink(row: int) -> int:
+    """Battlefield rows (7-9) shrink by 1 hex on each side."""
+    zt, _, _ = get_zone(row)
+    return 1 if zt == "battlefield" else 0
+
+
 def row_width(row: int) -> int:
     half = min(row, NUM_ROWS - 1 - row)
-    # Odd rows get +1 hex to compensate for 0.5 visual offset → symmetric diamond
+    shrink = _battlefield_shrink(row)
     if row % 2 == 1:
-        return 2 * half + 2
-    return 2 * half + 1
+        return 2 * half + 2 - 2 * shrink
+    return 2 * half + 1 - 2 * shrink
 
 
 def row_start(row: int) -> int:
     half = min(row, NUM_ROWS - 1 - row)
-    # Odd rows shift left by 1 to center the wider row
+    shrink = _battlefield_shrink(row)
     if row % 2 == 1:
-        return CENTER_COL - half - 1
-    return CENTER_COL - half
+        return CENTER_COL - half - 1 + shrink
+    return CENTER_COL - half + shrink
 
 
 def is_valid_hex(col: int, row: int) -> bool:

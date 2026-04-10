@@ -1,5 +1,15 @@
 # CHANGELOG – Marshal & Spy
 
+## 2026-04-10 – v0.9 – Narrowed Battlefield
+
+### Board change
+- Battlefield rows (7-9) shrunk by 1 hex on each side
+- Battlefield is now NARROWER than Level 2 (creates bottleneck)
+- Row 7: 14 hexes, Row 8: 15 hexes, Row 9: 14 hexes
+- Level 2 remains 12-13 hexes wide
+- 147 total hexes (was 153)
+- Still perfectly symmetric (all centers at 8.0)
+
 ## 2026-04-10 – v0.8 – Symmetric Diamond & Auto-fit
 
 ### Board symmetry fix

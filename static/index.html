@@ -1075,8 +1075,9 @@ function pixelToHex(px, py){
     let bc=0, br=0, bd=Infinity;
     for(let r=0;r<17;r++){
         const half=Math.min(r,16-r);
-        const s = r%2===1 ? 8-half-1 : 8-half;
-        const w = r%2===1 ? 2*half+2 : 2*half+1;
+        const bf = (r>=7 && r<=9) ? 1 : 0; // battlefield shrink
+        const s = r%2===1 ? 8-half-1+bf : 8-half+bf;
+        const w = r%2===1 ? 2*half+2-2*bf : 2*half+1-2*bf;
         for(let i=0;i<w;i++){
             const c=s+i, p=hexToPixelRaw(c,r);
             const d=(p.x-wx)**2+(p.y-wy)**2;
