@@ -1,0 +1,115 @@
+<html><head><meta charset="utf-8"><title>Changelog</title>
+<style>body{background:#07080f;color:#c8d6e5;font-family:monospace;padding:20px;max-width:800px;margin:0 auto}h1{color:#00e5ff}h2{color:#ffd700;border-bottom:1px solid #1a2744;padding-bottom:4px}h3{color:#00ff88}li{margin:2px 0}</style>
+</head><body>
+<h1>CHANGELOG – Marshal &amp; Spy</h1>
+<h2>2026-04-10 – v0.8 – Symmetric Diamond &amp; Auto-fit</h2>
+<h3>Board symmetry fix</h3>
+<li>Odd rows now get +1 hex on the left side to compensate for hex offset</li>
+<li>All row centers align at exactly the same X position (col 8.0)</li>
+<li>Diamond is now perfectly symmetric visually</li>
+<li>153 hexes total (was 145)</li>
+<h3>Auto-fit zoom</h3>
+<li>Board automatically scales to fill 95% of available canvas</li>
+<li>Works on any screen size (mobile, desktop, fullscreen)</li>
+<li>Manual zoom (scroll wheel) overrides auto-fit</li>
+<li>Home key resets to auto-fit</li>
+<h3>Canvas width fix</h3>
+<li>`#game-screen { align-items:stretch }` – game container fills full width</li>
+<li>`#game-container { width:100% }` – explicit full width</li>
+<li>Desktop: side panel stays visible during battle</li>
+<h2>2026-04-10 – v0.7 – UI Polish &amp; Profile</h2>
+<h3>Animation sequence (corrected)</h3>
+<li>Player move → 500ms pause → camera pan to enemy (600ms) → THEN enemy moves (350ms)</li>
+<li>Camera pan completes BEFORE enemy unit starts moving</li>
+<li>`panToHex` now supports `onDone` callback for sequencing</li>
+<h3>UI improvements</h3>
+<li><b>Fullscreen</b> button (⛶) in game top bar, works on PC and mobile</li>
+<li><b>Custom abort dialog</b> – styled overlay with YES/NO instead of browser confirm</li>
+<li><b>Delete saved games</b> – DEL button next to each save in lobby</li>
+<li><b>Profile redesign</b> – click username to expand settings: password change, email, logout, changelog link</li>
+<li><b>Email field</b> – optional email in profile settings, saved to DB</li>
+<h3>Backend</h3>
+<li>`DELETE /api/saves/{id}` endpoint</li>
+<li>`POST /api/auth/email` endpoint</li>
+<li>Email column migration for existing DB (ALTER TABLE)</li>
+<h2>2026-04-10 – v0.6 – Sequenced Animations</h2>
+<h3>Animation overhaul</h3>
+<li>Player's move animates FIRST (350ms)</li>
+<li>Then 500ms pause</li>
+<li>Then camera pans to enemy's unit (600ms)</li>
+<li>Then enemy's unit animates to new position (350ms)</li>
+<li>Death flashes tied to correct phase</li>
+<li>3-phase system: phase 1 (player) → phase 2 (pause) → phase 3 (enemy)</li>
+<h2>2026-04-10 – v0.5 – Full Feature Update</h2>
+<h3>Bugfixes</h3>
+<li>Victory overlay: fixed re-showing loop, PROCEED button now works (JS listener)</li>
+<li>Canvas width: panel uses display:none (instant), proper resize after hide</li>
+<li>Panel hide/show with dedicated functions, no CSS transition conflicts</li>
+<h3>New features</h3>
+<li><b>Camera follow enemy</b>: after player's move, 0.5s delay → smooth camera pan to enemy's moving unit</li>
+<li><b>Unit movement animation</b>: 350ms easeInOutQuad slide + death flash</li>
+<li><b>Last-move highlight</b>: pulsing ring + dashed trail per player</li>
+<li><b>Profile & password change</b> in lobby</li>
+<li><b>Save/Load games</b>: manual save with custom name, load from lobby</li>
+<li><b>Autosave</b>: every turn automatically saved (1 autosave per game)</li>
+<li><b>SAVE button</b> in game top bar</li>
+<li><b>CHANGELOG</b> link in lobby footer</li>
+<li><b>Detailed AI decision logging</b>: every turn logs what AI sees, all options scored, top 5 options, chosen action with reasoning</li>
+<li>AI decision logs included in game_logs JSON files</li>
+<h2>2026-04-10 – v0.4 – Map Resize &amp; Simulation</h2>
+<h3>Map changes</h3>
+<li>Battlefield reduced from 5 to 3 rows (rows 7-9)</li>
+<li>Total grid: 17 rows, 145 hexes (was 19 rows, 181 hexes)</li>
+<li>Mountains repositioned to (4,7), (12,7), (4,9), (12,9)</li>
+<li>Citadels at (8,0) and (8,16)</li>
+<li>Not a perfect diamond but intentional per design</li>
+<h3>Simulation &amp; Logging</h3>
+<li>`run_sim.py` – CLI simulation runner for AI vs AI games</li>
+<li>Full game logging to `game_logs/` directory (JSON per game)</li>
+<li>Logs include every action, placement, combat result for analysis</li>
+<h2>2026-04-10 – v0.3 – Game Rules &amp; UX Fixes</h2>
+<h3>Rules corrections</h3>
+<li>Placement only into Level zones (citadel and battlefield blocked)</li>
+<li>Special units limit per level: 5 + level number (L0=5, L1=6, L2=7)</li>
+<li>Max 1 Terminator and 1 Assassin per level</li>
+<li>All ranged/recon abilities: range = 2 + placement level (dynamic)</li>
+<h3>Features</h3>
+<li><b>Random Deploy button</b> – auto-places all units + auto-confirms</li>
+<li><b>Auto-advance placement</b> – after placing a unit, next unplaced auto-selects</li>
+<li><b>View flip</b> – player's territory always rendered at bottom, attacking upward</li>
+<li><b>ELO ranking system</b> – 1000 starting, K=32, leaderboard in lobby</li>
+<li><b>Leaderboard API</b> – `GET /api/leaderboard`, `GET /api/stats/{user_id}`</li>
+<h3>Bugfixes</h3>
+<li>AI placement no longer tries citadel hex (caused 22/23 placement)</li>
+<li>Confirm button shows only when all units are placed</li>
+<li>Camera centering works correctly with flipped view</li>
+<h2>2026-04-10 – v0.2 – Futuristic UI &amp; Sprite System</h2>
+<h3>UI overhaul</h3>
+<li>Futuristic military theme (Orbitron + Share Tech Mono fonts)</li>
+<li>Dark color scheme with neon accents (cyan/red/gold)</li>
+<li>Sprite system: load from `/static/img/units/{type}.png`, auto-fallback to canvas</li>
+<h3>Backend</h3>
+<li>FastAPI server on port 8030</li>
+<li>SQLite persistence (users, games, stats)</li>
+<li>JWT authentication (30-day tokens)</li>
+<li>AI opponent (scoring-based decision making)</li>
+<h2>2026-04-10 – v0.1 – Initial Implementation</h2>
+<h3>Core game engine</h3>
+<li>Diamond hex grid: 19 rows, 181 hexes, 4 fixed mountains</li>
+<li>17 unit types: 7 ground, 2 air, 8 special</li>
+<li>23 units per player</li>
+<li>Fog of war (hidden units, reveal/conceal mechanics)</li>
+<li>Jammer protection against scouting and combat revelation</li>
+<li>Special combat rules: Assassin vulnerability, Helicopter safe attacks, Mine traps</li>
+<li>Special abilities: Engineer (conceal/defuse), Recon (reveal), Trainer (boost),</li>
+<p>  Corruptor (weaken), Artillery (ranged ground), Attack Drone (ranged all)</p>
+<li>Win condition: capture enemy citadel with ground unit</li>
+<h3>Game modes</h3>
+<li>VS AI (single player)</li>
+<li>Online PVP (2 players via server)</li>
+<li>Hot-seat (2 players, 1 device)</li>
+<h3>API</h3>
+<li>REST endpoints for all game actions</li>
+<li>Player view filtering (fog of war server-side)</li>
+<li>Available actions computed per turn</li>
+</body></html>

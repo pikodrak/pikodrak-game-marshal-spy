@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MARSHAL & SPY</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+:root{
+  --bg:#07080f;--panel:#0c1021;--border:#1a2744;--accent:#00e5ff;--accent2:#ff3d3d;
+  --text:#c8d6e5;--text-dim:#5a6a7a;--gold:#ffd700;--green:#00ff88;
+  --font-head:'Orbitron',monospace;--font-mono:'Share Tech Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:var(--bg);color:var(--text);font-family:var(--font-mono);overflow:hidden;height:100%;width:100%}
+#app{display:flex;height:100%;width:100%}
+
+/* --- Screens --- */
+.screen{display:none;width:100%;height:100%;align-items:center;justify-content:center}
+.screen.active{display:flex}
+
+/* Auth */
+.auth-box{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:40px;width:380px;text-align:center;position:relative}
+.auth-box::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+.auth-box h1{font-family:var(--font-head);color:var(--accent);font-size:24px;letter-spacing:4px;margin-bottom:4px}
+.auth-box h2{color:var(--text-dim);font-size:12px;margin-bottom:24px;letter-spacing:2px;text-transform:uppercase}
+.auth-box input{width:100%;padding:10px 12px;margin:5px 0;background:#0a0e1a;border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:13px}
+.auth-box input:focus{outline:none;border-color:var(--accent)}
+.auth-box .error{color:var(--accent2);font-size:12px;margin-top:8px}
+.toggle-link{color:var(--text-dim);font-size:11px;margin-top:12px;cursor:pointer}
+.toggle-link span{color:var(--accent)}
+
+/* Buttons */
+.btn{padding:8px 16px;background:transparent;border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:12px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:all .15s}
+.btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,.05)}
+.btn.primary{border-color:var(--accent);color:var(--accent)}
+.btn.primary:hover{background:rgba(0,229,255,.15)}
+.btn.danger{border-color:var(--accent2);color:var(--accent2)}
+.btn.danger:hover{background:rgba(255,61,61,.1)}
+
+/* Lobby */
+.lobby-wrap{display:flex;flex-direction:column;gap:16px;width:520px}
+.lobby-box{background:var(--panel);border:1px solid var(--border);padding:20px;position:relative}
+.lobby-box::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+.lobby-box h2{font-family:var(--font-head);color:var(--accent);font-size:14px;letter-spacing:2px;margin-bottom:12px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.game-list{max-height:160px;overflow-y:auto;margin-top:8px}
+.game-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #111827;font-size:12px}
+.user-bar{font-size:11px;color:var(--text-dim);text-align:center}
+.user-bar span.elo{color:var(--gold);font-weight:bold}
+.user-bar a{color:var(--accent);cursor:pointer;margin-left:8px}
+
+/* Leaderboard */
+.lb-table{width:100%;border-collapse:collapse;font-size:12px}
+.lb-table th{color:var(--accent);text-align:left;padding:4px 8px;border-bottom:1px solid var(--border);font-family:var(--font-head);font-size:10px;letter-spacing:1px}
+.lb-table td{padding:4px 8px;border-bottom:1px solid #0d1225}
+.lb-table tr:hover td{background:rgba(0,229,255,.03)}
+.lb-table .rank{color:var(--gold);width:30px}
+.lb-table .elo-val{color:var(--gold)}
+
+/* Game */
+#game-screen{flex-direction:column;align-items:stretch;justify-content:stretch}
+#game-container{display:flex;flex:1;overflow:hidden;width:100%}
+#canvas-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden}
+canvas{flex:1;display:block;min-height:0;width:100%}
+#side-panel{width:260px;min-width:260px;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#side-panel.hidden{display:none}
+#info-panel{padding:10px;flex:1;overflow-y:auto}
+#info-panel h3{font-family:var(--font-head);color:var(--accent);font-size:11px;letter-spacing:1px;margin-bottom:6px}
+#log-panel{padding:10px;border-top:1px solid var(--border);max-height:180px;overflow-y:auto}
+#log-panel .entry{font-size:10px;color:var(--text-dim);padding:2px 0;border-bottom:1px solid #0a0e1a}
+
+#top-bar{height:32px;min-height:32px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 8px;gap:10px;font-size:11px}
+#top-bar .turn{color:var(--accent);font-family:var(--font-head);font-size:11px;letter-spacing:1px}
+#top-bar .phase{color:var(--gold)}
+#action-bar{height:38px;min-height:38px;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:6px}
+
+/* Mobile: auto-hide panel, compact bars */
+@media(max-width:700px){
+  #side-panel{width:0;min-width:0;opacity:0;padding:0;border-left:none;pointer-events:none}
+  #side-panel.shown{width:240px;min-width:240px;opacity:1;padding:10px;border-left:1px solid var(--border);pointer-events:auto;position:absolute;right:0;top:0;bottom:0;z-index:20;background:var(--panel)}
+  #top-bar{height:28px;min-height:28px;padding:0 6px;gap:6px;font-size:10px}
+  #action-bar{height:34px;min-height:34px;gap:4px}
+  .btn{padding:5px 10px;font-size:10px}
+}
+
+/* Unit cards */
+.unit-card{background:#0a0e1a;border:1px solid #151d30;padding:6px 8px;margin:3px 0;cursor:pointer;font-size:11px;display:flex;align-items:center;gap:6px;transition:border-color .1s}
+.unit-card:hover{border-color:var(--accent)}
+.unit-card.selected{border-color:var(--accent);background:#0d1530}
+.unit-card .abbr{font-family:var(--font-head);font-size:10px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);background:#080c18}
+.unit-card .info{flex:1}
+.unit-card .name{color:var(--text);font-size:11px}
+.unit-card .stats{color:var(--text-dim);font-size:10px}
+.unit-card .atk{color:var(--gold);font-family:var(--font-head);font-size:12px}
+.unit-card.placed{opacity:.5}
+
+/* Overlay */
+#overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.9);z-index:100;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+#overlay.active{display:flex}
+#overlay .title{font-family:var(--font-head);font-size:20px;color:var(--accent);letter-spacing:3px}
+#overlay .subtitle{color:var(--text-dim);font-size:14px}
+
+/* Sprite system: images load from /static/img/units/{type}.png */
+/* Fallback is canvas-drawn shapes when sprites not found */
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- AUTH -->
+<div id="auth-screen" class="screen active">
+<div class="auth-box">
+  <h1>MARSHAL & SPY</h1>
+  <h2>Strategic Warfare</h2>
+  <input id="auth-user" placeholder="CALLSIGN" autocomplete="off" spellcheck="false">
+  <input id="auth-pass" type="password" placeholder="ACCESS CODE">
+  <button class="btn primary" style="width:100%;margin-top:8px" onclick="doAuth()">
+    <span id="auth-btn-text">LOGIN</span>
+  </button>
+  <div class="toggle-link" onclick="toggleAuth()"><span id="auth-toggle-text">New recruit? Register</span></div>
+  <div id="auth-error" class="error"></div>
+</div>
+</div>
+
+<!-- LOBBY -->
+<div id="lobby-screen" class="screen">
+<div class="lobby-wrap">
+  <div class="lobby-box">
+    <h2>DEPLOY</h2>
+    <div class="btn-row">
+      <button class="btn primary" onclick="newGame('ai')">VS AI</button>
+      <button class="btn primary" onclick="newGame('online')">ONLINE PVP</button>
+      <button class="btn primary" onclick="newGame('hotseat')">HOT-SEAT</button>
+    </div>
+  </div>
+  <div class="lobby-box">
+    <h2>ACTIVE OPS</h2>
+    <button class="btn" onclick="refreshGames()">REFRESH</button>
+    <div id="game-list" class="game-list"></div>
+  </div>
+  <div class="lobby-box">
+    <h2>SAVED GAMES</h2>
+    <div id="saves-list" class="game-list"></div>
+  </div>
+  <div class="lobby-box">
+    <h2>LEADERBOARD</h2>
+    <div id="leaderboard"></div>
+  </div>
+  <div class="lobby-box" id="profile-box">
+    <h2 style="cursor:pointer" onclick="document.getElementById('profile-detail').style.display=document.getElementById('profile-detail').style.display==='none'?'block':'none'">
+      <span id="lobby-user" style="color:var(--accent)"></span>
+      <span style="color:var(--text-dim);font-size:10px;margin-left:8px">ELO: <span class="elo" id="lobby-elo">1000</span></span>
+      <span style="color:var(--text-dim);font-size:9px;float:right">&#9660; SETTINGS</span>
+    </h2>
+    <div id="profile-detail" style="display:none">
+      <div style="margin:8px 0;font-size:11px;color:var(--text-dim)">Change password</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <input id="old-pass" type="password" placeholder="Current password" style="flex:1;padding:6px;background:#0a0e1a;border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:11px">
+        <input id="new-pass" type="password" placeholder="New password" style="flex:1;padding:6px;background:#0a0e1a;border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:11px">
+        <button class="btn" onclick="changePassword()">CHANGE</button>
+      </div>
+      <div id="pass-msg" style="font-size:11px;margin-top:4px"></div>
+      <div style="margin:10px 0 4px;font-size:11px;color:var(--text-dim)">Email (optional)</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="user-email" type="email" placeholder="email@example.com" style="flex:1;padding:6px;background:#0a0e1a;border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:11px">
+        <button class="btn" onclick="saveEmail()">SAVE</button>
+      </div>
+      <div id="email-msg" style="font-size:11px;margin-top:4px"></div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <a style="color:var(--accent2);cursor:pointer;font-size:11px" onclick="logout()">LOGOUT</a>
+        <a href="/static/changelog.html" target="_blank" style="color:var(--text-dim);font-size:11px">CHANGELOG</a>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- GAME -->
+<div id="game-screen" class="screen">
+<div id="game-container">
+  <div id="canvas-wrap">
+    <div id="top-bar">
+      <span class="turn" id="turn-info">TURN 1</span>
+      <span class="phase" id="phase-info">DEPLOYMENT</span>
+      <span id="player-info">P1</span>
+      <span style="flex:1"></span>
+      <button class="btn" onclick="toggleFullscreen()" id="btn-fs">&#x26F6;</button>
+      <button class="btn" onclick="saveCurrentGame()">SAVE</button>
+      <button class="btn" id="btn-panel" onclick="togglePanel()" style="display:none">PANEL</button>
+      <button class="btn" onclick="backToLobby()">ABORT</button>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="action-bar">
+      <button class="btn" id="btn-random" onclick="randomPlacement()" style="display:none">RANDOM DEPLOY</button>
+      <button class="btn primary" id="btn-confirm" onclick="confirmPlacement()" style="display:none">CONFIRM DEPLOYMENT</button>
+      <button class="btn" id="btn-pass" onclick="passTurn()" style="display:none">SKIP TURN</button>
+      <button class="btn danger" id="btn-cancel" onclick="cancelSelection()" style="display:none">CANCEL [ESC]</button>
+    </div>
+  </div>
+  <div id="side-panel">
+    <div id="info-panel"></div>
+    <div id="log-panel"></div>
+  </div>
+</div>
+</div>
+
+<!-- OVERLAY / DIALOG -->
+<div id="overlay">
+  <div style="background:var(--panel);border:1px solid var(--border);padding:30px 40px;max-width:400px;width:90%;text-align:center;position:relative">
+    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent)"></div>
+    <div class="title" id="overlay-title" style="font-family:var(--font-head);font-size:18px;color:var(--accent);letter-spacing:2px;margin-bottom:8px"></div>
+    <div class="subtitle" id="overlay-sub" style="color:var(--text-dim);font-size:13px;margin-bottom:16px"></div>
+    <div id="overlay-input-wrap" style="display:none;margin-bottom:16px">
+      <input id="overlay-input" type="text" style="width:100%;padding:8px;background:#0a0e1a;border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:13px">
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="btn primary" id="overlay-btn-ok" style="padding:10px 30px;font-size:14px;cursor:pointer">OK</button>
+      <button class="btn" id="overlay-btn-cancel" style="padding:10px 30px;font-size:14px;cursor:pointer;display:none">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// ============================================================
+// SPRITE SYSTEM – easily replaceable assets
+// ============================================================
+const SPRITES = {};
+const SPRITE_TYPES = [
+    'engineer','scout','private','paratrooper','tank','terminator','assassin',
+    'helicopter','fighter','recon_drone','attack_drone','trainer','corruptor',
+    'jammer','mine','artillery','unknown'
+];
+
+function loadSprites(){
+    for(const t of SPRITE_TYPES){
+        const img = new Image();
+        img.src = `/static/img/units/${t}.png`;
+        img.onload = () => { SPRITES[t] = img; };
+        // If not found, SPRITES[t] stays undefined → fallback to canvas drawing
+    }
+}
+loadSprites();
+
+// ============================================================
+// STATE
+// ============================================================
+let TOKEN = localStorage.getItem('ms_token') || '';
+let USERNAME = localStorage.getItem('ms_user') || '';
+let GAME_ID = null, MY_PLAYER = 1, STATE = null, MODE = 'ai';
+let selectedUnit = null, highlightHexes = [], hoverHex = null;
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const HEX_SIZE = 28, SQRT3 = Math.sqrt(3);
+let camX = 0, camY = 0, zoom = 1.0;
+let isDragging = false, dragStartX = 0, dragStartY = 0, dragCamX = 0, dragCamY = 0;
+let isRegister = false;
+
+// Animation & last-move tracking
+let anims = [];          // [{id, fromCol, fromRow, toCol, toRow, progress}]
+let animStart = 0;
+const ANIM_MS = 350;
+let lastMove = {1: null, 2: null};  // per player: {id, fromCol, fromRow, toCol, toRow}
+let prevPositions = {};  // unitId -> {col, row} snapshot before state update
+
+// ============================================================
+// AUTH
+// ============================================================
+function toggleAuth(){
+    isRegister = !isRegister;
+    document.getElementById('auth-btn-text').textContent = isRegister ? 'REGISTER' : 'LOGIN';
+    document.getElementById('auth-toggle-text').textContent = isRegister ? 'Have access? Login' : 'New recruit? Register';
+}
+
+async function doAuth(){
+    const user = document.getElementById('auth-user').value.trim();
+    const pass = document.getElementById('auth-pass').value;
+    const url = isRegister ? '/api/auth/register' : '/api/auth/login';
+    try {
+        const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({username:user, password:pass})});
+        const d = await r.json();
+        if(d.ok){
+            TOKEN = d.token; USERNAME = d.username;
+            localStorage.setItem('ms_token', TOKEN); localStorage.setItem('ms_user', USERNAME);
+            showScreen('lobby');
+        } else {
+            document.getElementById('auth-error').textContent = d.error || 'ACCESS DENIED';
+        }
+    } catch(e){ document.getElementById('auth-error').textContent = 'COMMS FAILURE'; }
+}
+
+function logout(){ TOKEN=''; USERNAME=''; localStorage.removeItem('ms_token'); localStorage.removeItem('ms_user'); showScreen('auth'); }
+
+// ============================================================
+// SCREENS
+// ============================================================
+function showScreen(name){
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(name+'-screen').classList.add('active');
+    if(name === 'lobby'){ refreshLobby(); }
+    if(name === 'game'){ resizeCanvas(); }
+}
+
+async function backToLobby(){
+    if(STATE && STATE.phase !== 'finished'){
+        const ok = await customConfirm('ABANDON MISSION?', 'Current game will not be lost – autosave is active.');
+        if(!ok) return;
+    }
+    GAME_ID=null; STATE=null; selectedUnit=null; showScreen('lobby');
+}
+
+async function refreshLobby(){
+    document.getElementById('lobby-user').textContent = USERNAME;
+    const me = await apiFetch('/api/auth/me', null, 'GET');
+    if(me.ok && me.stats) document.getElementById('lobby-elo').textContent = me.stats.elo || 1000;
+    if(me.ok && me.email) document.getElementById('user-email').value = me.email;
+    refreshGames();
+    refreshLeaderboard();
+    refreshSaves();
+}
+
+async function saveEmail(){
+    const email = document.getElementById('user-email').value.trim();
+    const r = await apiFetch('/api/auth/email', {email});
+    const msg = document.getElementById('email-msg');
+    msg.textContent = r.ok ? 'Email saved' : (r.error||'Error');
+    msg.style.color = r.ok ? 'var(--green)' : 'var(--accent2)';
+}
+
+async function changePassword(){
+    const old_p = document.getElementById('old-pass').value;
+    const new_p = document.getElementById('new-pass').value;
+    const r = await apiFetch('/api/auth/change_password', {old_password:old_p, new_password:new_p});
+    const msg = document.getElementById('pass-msg');
+    msg.textContent = r.ok ? 'Password changed!' : (r.error || 'Error');
+    msg.style.color = r.ok ? 'var(--green)' : 'var(--accent2)';
+    if(r.ok){ document.getElementById('old-pass').value=''; document.getElementById('new-pass').value=''; }
+}
+
+async function refreshSaves(){
+    const r = await apiFetch('/api/saves', null, 'GET');
+    const el = document.getElementById('saves-list');
+    if(!r.ok || !r.saves.length){ el.innerHTML='<div style="color:var(--text-dim);font-size:11px">No saved games</div>'; return; }
+    el.innerHTML = r.saves.map(s => `
+        <div class="game-item"><span>${s.name} ${s.is_autosave?'[auto]':''}</span>
+        <div><button class="btn" onclick="loadSave(${s.id})">LOAD</button>
+        <button class="btn danger" onclick="deleteSave(${s.id})">DEL</button></div></div>
+    `).join('');
+}
+
+async function deleteSave(saveId){
+    const ok = await customConfirm('DELETE SAVE?', 'This cannot be undone.');
+    if(!ok) return;
+    const r = await apiFetch(`/api/saves/${saveId}`, null, 'DELETE');
+    if(r.ok) refreshSaves();
+    else showToast(r.error||'Error');
+}
+
+async function loadSave(saveId){
+    const r = await apiFetch(`/api/saves/${saveId}/load`, {});
+    if(r.ok){ GAME_ID=r.game_id; MY_PLAYER=1; MODE='ai'; showScreen('game'); await fetchState(); }
+    else showToast(r.error||'Error');
+}
+
+async function saveCurrentGame(){
+    if(!GAME_ID) return;
+    const name = await customPrompt('SAVE GAME', `Save T${STATE?.turn||0}`, 'Enter a name for this save:');
+    if(!name) return;
+    const r = await apiFetch(`/api/game/${GAME_ID}/save`, {name});
+    if(r.ok) showToast('Game saved');
+    else showToast(r.error||'Error');
+}
+
+// ============================================================
+// LOBBY
+// ============================================================
+async function newGame(mode){
+    MODE = mode;
+    const r = await apiFetch('/api/game/new', {mode});
+    if(r.ok){ GAME_ID = r.game_id; MY_PLAYER = r.player; showScreen('game'); await fetchState(); }
+}
+
+async function joinGame(gid){
+    const r = await apiFetch('/api/game/join', {game_id: gid});
+    if(r.ok){ GAME_ID = r.game_id; MY_PLAYER = r.player; MODE = 'online'; showScreen('game'); await fetchState(); }
+}
+
+async function refreshGames(){
+    const r = await apiFetch('/api/game/list', null, 'GET');
+    const el = document.getElementById('game-list');
+    if(!r.ok || !r.games.length){ el.innerHTML='<div style="color:var(--text-dim);font-size:11px">No active ops</div>'; return; }
+    el.innerHTML = r.games.filter(g=>g.joinable).map(g => `
+        <div class="game-item"><span>${g.game_id} [${g.mode}]</span>
+        <button class="btn" onclick="joinGame('${g.game_id}')">JOIN</button></div>
+    `).join('') || '<div style="color:var(--text-dim);font-size:11px">No joinable games</div>';
+}
+
+async function refreshLeaderboard(){
+    const r = await apiFetch('/api/leaderboard', null, 'GET');
+    const el = document.getElementById('leaderboard');
+    if(!r.ok || !r.leaderboard.length){ el.innerHTML='<div style="color:var(--text-dim);font-size:11px">No rankings yet</div>'; return; }
+    let html = '<table class="lb-table"><tr><th>#</th><th>OPERATIVE</th><th>ELO</th><th>W/L</th></tr>';
+    r.leaderboard.forEach((p,i) => {
+        html += `<tr><td class="rank">${i+1}</td><td>${p.username}</td><td class="elo-val">${p.elo}</td><td>${p.wins}/${p.losses}</td></tr>`;
+    });
+    el.innerHTML = html + '</table>';
+}
+
+// ============================================================
+// API
+// ============================================================
+async function apiFetch(url, body, method='POST'){
+    const opts = {method, headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN}};
+    if(body && method==='POST') opts.body = JSON.stringify(body);
+    try { const r = await fetch(url, opts); return await r.json(); }
+    catch(e){ return {ok:false, error:'network'}; }
+}
+
+function snapshotPositions(){
+    prevPositions = {};
+    if(!STATE) return;
+    for(const u of [...(STATE.my_units||[]),...(STATE.enemy_units||[])]){
+        if(u.placed) prevPositions[u.id] = {col:u.col, row:u.row};
+    }
+}
+
+let animPhase = 0; // 0=idle, 1=player anim, 2=pause, 3=enemy anim
+
+function detectAnimations(){
+    if(!STATE) return;
+    const newAnims = [];
+    for(const u of [...(STATE.my_units||[]),...(STATE.enemy_units||[])]){
+        if(!u.placed) continue;
+        const prev = prevPositions[u.id];
+        if(prev && (prev.col !== u.col || prev.row !== u.row)){
+            const isEnemy = u.owner !== MY_PLAYER;
+            newAnims.push({id:u.id, fromCol:prev.col, fromRow:prev.row,
+                           toCol:u.col, toRow:u.row, progress:0,
+                           owner:u.owner, phase: isEnemy ? 3 : 1});
+            lastMove[u.owner] = {id:u.id, fromCol:prev.col, fromRow:prev.row,
+                                 toCol:u.col, toRow:u.row};
+        }
+    }
+    // Detect killed units
+    const aliveIds = new Set([...(STATE.my_units||[]),...(STATE.enemy_units||[])].map(u=>u.id));
+    for(const [id, pos] of Object.entries(prevPositions)){
+        if(!aliveIds.has(id)){
+            // Guess owner from id prefix
+            const owner = id.startsWith('1_') ? 1 : 2;
+            const isEnemy = owner !== MY_PLAYER;
+            newAnims.push({id, fromCol:pos.col, fromRow:pos.row,
+                           toCol:pos.col, toRow:pos.row, progress:0,
+                           type:'death', phase: isEnemy ? 3 : 1});
+        }
+    }
+    if(!newAnims.length) return;
+
+    anims = newAnims;
+    const hasPlayerAnims = anims.some(a => a.phase === 1);
+    const hasEnemyAnims = anims.some(a => a.phase === 3);
+
+    if(hasPlayerAnims){
+        // Phase 1: player's move first
+        animPhase = 1;
+        animStart = performance.now();
+        requestAnimationFrame(animLoop);
+    } else if(hasEnemyAnims){
+        // Only enemy anims - pan first, then animate
+        const em = anims.find(a => a.phase === 3 && a.type !== 'death');
+        if(em){
+            panToHex(em.fromCol, em.fromRow, 600, () => {
+                animPhase = 3;
+                animStart = performance.now();
+                requestAnimationFrame(animLoop);
+            });
+        } else {
+            animPhase = 3;
+            animStart = performance.now();
+            requestAnimationFrame(animLoop);
+        }
+    }
+}
+
+function animLoop(now){
+    const t = Math.min(1, (now - animStart) / ANIM_MS);
+    const ease = t < 0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+
+    for(const a of anims){
+        if(a.phase === animPhase) a.progress = ease;
+    }
+    render();
+
+    if(t < 1){
+        requestAnimationFrame(animLoop);
+        return;
+    }
+
+    if(animPhase === 1){
+        const hasEnemy = anims.some(a => a.phase === 3);
+        if(hasEnemy){
+            // Pause 500ms → pan to enemy unit → then animate enemy
+            animPhase = 2;
+            setTimeout(() => {
+                const em = anims.find(a => a.phase === 3 && a.type !== 'death');
+                if(em){
+                    panToHex(em.fromCol, em.fromRow, 600, () => {
+                        animPhase = 3;
+                        animStart = performance.now();
+                        requestAnimationFrame(animLoop);
+                    });
+                } else {
+                    animPhase = 3;
+                    animStart = performance.now();
+                    requestAnimationFrame(animLoop);
+                }
+            }, 500);
+        } else {
+            anims = []; animPhase = 0; render();
+        }
+    } else {
+        anims = []; animPhase = 0; render();
+    }
+}
+
+// Smooth camera pan to a hex, calls onDone when finished
+function panToHex(col, row, duration=500, onDone=null){
+    const target = hexToPixelRaw(col, row);
+    const targetCamX = canvas.width/2 - target.x*zoom;
+    const targetCamY = canvas.height/2 - target.y*zoom;
+    const startCamX = camX, startCamY = camY;
+    const start = performance.now();
+    function panStep(now){
+        const t = Math.min(1, (now - start) / duration);
+        const ease = t < 0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+        camX = startCamX + (targetCamX - startCamX) * ease;
+        camY = startCamY + (targetCamY - startCamY) * ease;
+        render();
+        if(t < 1) requestAnimationFrame(panStep);
+        else if(onDone) onDone();
+    }
+    requestAnimationFrame(panStep);
+}
+
+// Fullscreen toggle
+function toggleFullscreen(){
+    if(!document.fullscreenElement){
+        (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen || function(){}).call(document.documentElement);
+    } else {
+        (document.exitFullscreen || document.webkitExitFullscreen || function(){}).call(document);
+    }
+}
+function onFullscreenChange(){
+    userZoomed = false;
+    for(const delay of [50, 150, 300, 500]){
+        setTimeout(resizeCanvas, delay);
+    }
+}
+document.addEventListener('fullscreenchange', onFullscreenChange);
+document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+
+function autoFitZoom(){
+    const oldZoom = zoom;
+    zoom = 1; // reset to calculate raw board size
+    const p1=hexToPixelRaw(0,0), p2=hexToPixelRaw(16,16);
+    const bw=Math.abs(p2.x-p1.x)+HEX_SIZE*4;
+    const bh=Math.abs(p2.y-p1.y)+HEX_SIZE*4;
+    const zx = canvas.width * 0.9 / bw;
+    const zy = canvas.height * 0.9 / bh;
+    zoom = Math.min(zx, zy);
+    zoom = Math.max(0.5, Math.min(5.0, zoom));
+    centerCamera();
+    render();
+}
+
+async function fetchState(){
+    if(!GAME_ID) return;
+    snapshotPositions();
+    let url = `/api/game/${GAME_ID}/state`;
+    if(MODE === 'hotseat') url += `/${MY_PLAYER}`;
+    const r = await apiFetch(url, null, 'GET');
+    if(r.ok){
+        STATE = r;
+        detectAnimations();
+        updateUI();
+        render();
+    }
+}
+
+// ============================================================
+// GAME ACTIONS
+// ============================================================
+async function randomPlacement(){
+    // Place all unplaced units randomly
+    let r;
+    if(MODE === 'hotseat') r = await apiFetch(`/api/game/${GAME_ID}/hotseat`, {player:MY_PLAYER, action:'random_place'});
+    else r = await apiFetch(`/api/game/${GAME_ID}/random_place`);
+    if(!r.ok){ showToast(r.error||'Error'); return; }
+    await fetchState();
+    showToast(`${r.placed} units deployed`);
+    // Auto-confirm if all units placed
+    if(!STATE.unplaced_units || STATE.unplaced_units.length === 0){
+        let cr;
+        if(MODE === 'hotseat') cr = await apiFetch(`/api/game/${GAME_ID}/hotseat`, {player:MY_PLAYER, action:'confirm'});
+        else cr = await apiFetch(`/api/game/${GAME_ID}/confirm`);
+        if(cr.ok){
+            if(MODE === 'hotseat' && !cr.battle_started){ MY_PLAYER = 3-MY_PLAYER; showOverlay(`PASS TO PLAYER ${MY_PLAYER}`, 'Deployment phase'); }
+            await fetchState();
+        }
+    }
+}
+
+async function confirmPlacement(){
+    // Check if there are unplaced units
+    if(STATE && STATE.unplaced_units && STATE.unplaced_units.length > 0){
+        showToast(`${STATE.unplaced_units.length} units not yet deployed!`);
+        return;
+    }
+    let r;
+    if(MODE === 'hotseat') r = await apiFetch(`/api/game/${GAME_ID}/hotseat`, {player:MY_PLAYER, action:'confirm'});
+    else r = await apiFetch(`/api/game/${GAME_ID}/confirm`);
+    if(r.ok){
+        if(MODE === 'hotseat' && !r.battle_started){ MY_PLAYER = 3-MY_PLAYER; showOverlay(`PASS TO PLAYER ${MY_PLAYER}`, 'Deployment phase'); }
+        await fetchState();
+    } else if(r.error) showToast(r.error);
+}
+
+async function gameAction(action, body){
+    let r;
+    if(MODE === 'hotseat') r = await apiFetch(`/api/game/${GAME_ID}/hotseat`, {player:MY_PLAYER, action, ...body});
+    else r = await apiFetch(`/api/game/${GAME_ID}/${action}`, body);
+    if(r.ok){
+        if(MODE === 'hotseat' && ['move','attack','special','pass_turn'].includes(action)){
+            MY_PLAYER = 3-MY_PLAYER; showOverlay(`PASS TO PLAYER ${MY_PLAYER}`, 'Battle phase');
+        }
+        await fetchState();
+    } else if(r.error) showToast(r.error);
+    return r;
+}
+
+async function doPlace(uid, col, row){
+    await gameAction('place', {unit_id:uid, col, row});
+    // Auto-select next unplaced unit for fast placement
+    if(STATE && STATE.unplaced_units && STATE.unplaced_units.length > 0){
+        selectPlacementUnit(STATE.unplaced_units[0].id);
+    }
+}
+async function doMove(uid, col, row){ cancelSelection(); await gameAction('move', {unit_id:uid, col, row}); }
+async function doAttack(aid, tid){ cancelSelection(); await gameAction('attack', {attacker_id:aid, target_id:tid}); }
+async function doSpecial(uid, act, tid){ cancelSelection(); await gameAction('special', {unit_id:uid, action:act, target_id:tid}); }
+async function passTurn(){ cancelSelection(); await gameAction('pass_turn', {}); }
+
+function cancelSelection(){ selectedUnit=null; highlightHexes=[]; updateUI(); render(); }
+
+// ============================================================
+// CUSTOM DIALOG SYSTEM (replaces all browser confirm/prompt/alert)
+// ============================================================
+let dialogResolve = null;
+let overlayShown = false;
+
+function _showDialog({title, sub='', okText='OK', cancelText=null, inputDefault=null}){
+    return new Promise(resolve => {
+        dialogResolve = resolve;
+        overlayShown = true;
+        document.getElementById('overlay-title').textContent = title;
+        document.getElementById('overlay-sub').textContent = sub;
+        const btnOk = document.getElementById('overlay-btn-ok');
+        const btnCancel = document.getElementById('overlay-btn-cancel');
+        const inputWrap = document.getElementById('overlay-input-wrap');
+        const input = document.getElementById('overlay-input');
+
+        btnOk.textContent = okText;
+        if(cancelText){
+            btnCancel.textContent = cancelText;
+            btnCancel.style.display = '';
+        } else {
+            btnCancel.style.display = 'none';
+        }
+        if(inputDefault !== null){
+            inputWrap.style.display = '';
+            input.value = inputDefault;
+            setTimeout(()=>input.focus(), 100);
+        } else {
+            inputWrap.style.display = 'none';
+        }
+        document.getElementById('overlay').classList.add('active');
+    });
+}
+
+function _closeDialog(result){
+    document.getElementById('overlay').classList.remove('active');
+    overlayShown = false;
+    if(dialogResolve) { dialogResolve(result); dialogResolve = null; }
+}
+
+// Wire up buttons
+document.getElementById('overlay-btn-ok').addEventListener('click', () => {
+    const input = document.getElementById('overlay-input');
+    const inputWrap = document.getElementById('overlay-input-wrap');
+    _closeDialog(inputWrap.style.display !== 'none' ? input.value : true);
+});
+document.getElementById('overlay-btn-cancel').addEventListener('click', () => _closeDialog(null));
+// Touch support
+document.getElementById('overlay-btn-ok').addEventListener('touchend', e => {
+    e.preventDefault();
+    const input = document.getElementById('overlay-input');
+    const inputWrap = document.getElementById('overlay-input-wrap');
+    _closeDialog(inputWrap.style.display !== 'none' ? input.value : true);
+});
+document.getElementById('overlay-btn-cancel').addEventListener('touchend', e => { e.preventDefault(); _closeDialog(null); });
+// Enter key in input
+document.getElementById('overlay-input').addEventListener('keydown', e => {
+    if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('overlay-btn-ok').click(); }
+});
+
+// Public API
+function customAlert(title, sub=''){
+    return _showDialog({title, sub, okText:'OK'});
+}
+function customConfirm(title, sub=''){
+    return _showDialog({title, sub, okText:'YES', cancelText:'NO'});
+}
+function customPrompt(title, defaultVal='', sub=''){
+    return _showDialog({title, sub, okText:'OK', cancelText:'CANCEL', inputDefault:defaultVal});
+}
+
+let panelVisible = true;
+function togglePanel(){
+    const p = document.getElementById('side-panel');
+    panelVisible = !panelVisible;
+    if(panelVisible) p.classList.remove('hidden');
+    else p.classList.add('hidden');
+    setTimeout(resizeCanvas, 50);
+}
+function hidePanel(){
+    if(!panelVisible) return;
+    panelVisible = false;
+    document.getElementById('side-panel').classList.add('hidden');
+    setTimeout(resizeCanvas, 50);
+}
+function showPanel(){
+    if(panelVisible) return;
+    panelVisible = true;
+    document.getElementById('side-panel').classList.remove('hidden');
+    setTimeout(resizeCanvas, 50);
+}
+function showToast(msg){
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);background:var(--accent2);color:#fff;padding:6px 18px;font-size:12px;z-index:200;font-family:var(--font-mono)';
+    el.textContent = msg; document.body.appendChild(el); setTimeout(()=>el.remove(), 2000);
+}
+
+// ============================================================
+// UI UPDATE
+// ============================================================
+function updateUI(){
+    if(!STATE) return;
+    const {phase, current_player: cp, turn, winner, my_player: mp} = STATE;
+    const myTurn = cp === mp;
+
+    document.getElementById('turn-info').textContent = `TURN ${turn}`;
+    document.getElementById('phase-info').textContent = phase === 'placement' ? 'DEPLOYMENT' : phase === 'battle' ? 'COMBAT' : 'FINISHED';
+    document.getElementById('player-info').textContent = `P${mp}` + (myTurn && phase==='battle' ? ' // YOUR TURN' : '');
+    const hasUnplaced = STATE.unplaced_units && STATE.unplaced_units.length > 0;
+    document.getElementById('btn-random').style.display = phase === 'placement' && hasUnplaced ? '' : 'none';
+    document.getElementById('btn-confirm').style.display = phase === 'placement' && !hasUnplaced ? '' : 'none';
+    document.getElementById('btn-pass').style.display = phase === 'battle' && myTurn ? '' : 'none';
+    document.getElementById('btn-cancel').style.display = selectedUnit ? '' : 'none';
+
+    // Side panel: on desktop always visible, on mobile hidden during battle
+    const panelBtn = document.getElementById('btn-panel');
+    const isMobile = window.innerWidth <= 700;
+    if(phase === 'placement'){
+        showPanel();
+        panelBtn.style.display = 'none';
+    } else if(isMobile){
+        panelBtn.style.display = '';
+        hidePanel();
+    } else {
+        // Desktop: keep panel visible, no toggle button needed
+        showPanel();
+        panelBtn.style.display = 'none';
+    }
+
+    updateSidePanel();
+    if(phase === 'finished' && !overlayShown){
+        customAlert(winner === mp ? 'VICTORY' : 'DEFEAT', `Player ${winner} wins`).then(() => {
+            GAME_ID=null; STATE=null; selectedUnit=null; showScreen('lobby');
+        });
+    }
+}
+
+function updateSidePanel(){
+    const ip = document.getElementById('info-panel');
+    const lp = document.getElementById('log-panel');
+
+    if(STATE.phase === 'placement'){
+        const unplaced = STATE.unplaced_units || [];
+        const placed = STATE.my_units || [];
+        let h = '<h3>UNDEPLOYED UNITS</h3><div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">Select unit, then click hex</div>';
+        for(const u of unplaced){
+            const sel = selectedUnit?.id === u.id;
+            h += unitCard(u, sel, false, true);
+        }
+        if(placed.length){
+            h += '<h3 style="margin-top:10px">DEPLOYED</h3>';
+            for(const u of placed) h += unitCard(u, false, true, true);
+        }
+        ip.innerHTML = h;
+    } else if(STATE.phase === 'battle'){
+        let h = '<h3>MY FORCES</h3>';
+        for(const u of STATE.my_units||[])
+            h += unitCard(u, selectedUnit?.id === u.id, false, true);
+        const dead = STATE.dead_own || [];
+        if(dead.length){
+            h += '<h3 style="margin-top:10px;color:var(--accent2)">CASUALTIES</h3>';
+            for(const u of dead) h += `<div style="font-size:10px;color:#333;padding:1px 0">${u.name_cs} (${u.base_attack})</div>`;
+        }
+        ip.innerHTML = h;
+    } else {
+        ip.innerHTML = `<h3>MISSION COMPLETE</h3><p style="color:var(--gold)">Winner: Player ${STATE.winner}</p>`;
+    }
+
+    const logs = STATE.log || [];
+    lp.innerHTML = '<h3 style="font-size:10px;color:var(--text-dim)">COMMS LOG</h3>' +
+        logs.slice(-15).reverse().map(l => `<div class="entry">[T${l.turn}] ${l.msg}</div>`).join('');
+}
+
+function unitCard(u, selected, placed, clickable){
+    const onclick = clickable ? `onclick="${STATE.phase==='placement'?'selectPlacementUnit':'selectBattleUnit'}('${u.id}')"` : '';
+    return `<div class="unit-card ${selected?'selected':''} ${placed?'placed':''}" ${onclick}>
+        <div class="abbr" style="color:var(--accent)">${u.abbr||'??'}</div>
+        <div class="info"><div class="name">${u.name_cs}</div>
+        <div class="stats">${u.category||''} mv:${u.movement??'?'}${u.revealed?' [EXPOSED]':''}</div></div>
+        <div class="atk">${u.attack}</div></div>`;
+}
+
+// ============================================================
+// SELECTION
+// ============================================================
+function selectPlacementUnit(uid){
+    const all = [...(STATE.unplaced_units||[]), ...(STATE.my_units||[])];
+    const u = all.find(x => x.id === uid);
+    if(!u) return;
+    if(selectedUnit?.id === uid){ cancelSelection(); return; }
+    selectedUnit = u;
+    highlightHexes = getPlacementHexes(u);
+    updateUI(); render();
+}
+
+function selectBattleUnit(uid){
+    const u = (STATE.my_units||[]).find(x => x.id === uid);
+    if(!u || STATE.current_player !== MY_PLAYER) return;
+    if(selectedUnit?.id === uid){ cancelSelection(); return; }
+    selectedUnit = u; highlightHexes = [];
+    const aa = STATE.available_actions;
+    if(!aa){ updateUI(); render(); return; }
+    const m = aa.moves.find(x => x.unit_id === uid);
+    if(m) m.targets.forEach(t => highlightHexes.push({col:t.col, row:t.row, type:'move'}));
+    const a = aa.attacks.find(x => x.unit_id === uid);
+    if(a) a.targets.forEach(t => highlightHexes.push({col:t.col, row:t.row, type:'attack', target_id:t.unit_id}));
+    const s = aa.specials.find(x => x.unit_id === uid);
+    if(s) s.actions.forEach(t => highlightHexes.push({col:t.col, row:t.row, type:'special', special_action:t.action, target_id:t.target_id}));
+    updateUI(); render();
+}
+
+function getPlacementHexes(u){
+    if(!STATE) return [];
+    const hexes = [];
+    for(const c of STATE.board||[]){
+        if(c.is_mountain || c.zone_player !== MY_PLAYER || c.zone_type !== 'level') continue;
+        const occ = (STATE.my_units||[]).some(o => o.placed && o.col===c.col && o.row===c.row && o.id!==u.id);
+        if(!occ) hexes.push({col:c.col, row:c.row, type:'place'});
+    }
+    return hexes;
+}
+
+function findUnit(uid){
+    return [...(STATE.my_units||[]), ...(STATE.unplaced_units||[]), ...(STATE.enemy_units||[])].find(u => u.id===uid);
+}
+
+// ============================================================
+// HEX MATH – flip view so own territory is always at bottom
+// ============================================================
+function flipRow(row){ return MY_PLAYER === 1 ? (16 - row) : row; }
+function hexToPixel(col, row){
+    const r=flipRow(row);
+    return { x: HEX_SIZE*SQRT3*(col+0.5*(row&1))*zoom + camX, y: HEX_SIZE*1.5*r*zoom + camY };
+}
+function hexToPixelRaw(col, row){
+    const r=flipRow(row);
+    return { x: HEX_SIZE*SQRT3*(col+0.5*(row&1)), y: HEX_SIZE*1.5*r };
+}
+
+function pixelToHex(px, py){
+    // Convert screen pixel to world coordinates (undo zoom + pan)
+    const wx = (px - camX) / zoom, wy = (py - camY) / zoom;
+    let bc=0, br=0, bd=Infinity;
+    for(let r=0;r<17;r++){
+        const half=Math.min(r,16-r);
+        const s = r%2===1 ? 8-half-1 : 8-half;
+        const w = r%2===1 ? 2*half+2 : 2*half+1;
+        for(let i=0;i<w;i++){
+            const c=s+i, p=hexToPixelRaw(c,r);
+            const d=(p.x-wx)**2+(p.y-wy)**2;
+            if(d<bd){bd=d;bc=c;br=r;}
+        }
+    }
+    return bd < (HEX_SIZE*1.2)**2 ? {col:bc, row:br} : null;
+}
+
+function drawHex(cx, cy, sz, fill, stroke, lw=1){
+    const s = sz * zoom;
+    ctx.beginPath();
+    for(let i=0;i<6;i++){
+        const a=Math.PI/180*(60*i-30);
+        const hx=cx+s*Math.cos(a), hy=cy+s*Math.sin(a);
+        i===0?ctx.moveTo(hx,hy):ctx.lineTo(hx,hy);
+    }
+    ctx.closePath();
+    if(fill){ctx.fillStyle=fill;ctx.fill();}
+    if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+const ZONE_COLORS = {
+    citadel_1:'#2a0a0a', citadel_2:'#2a0a0a',
+    level_1_0:'#0a1a2a', level_1_1:'#0a2a1a', level_1_2:'#2a2a0a',
+    level_2_0:'#0a1a2a', level_2_1:'#0a2a1a', level_2_2:'#2a2a0a',
+    battlefield:'#121820', mountain:'#1a1510',
+};
+
+function getZoneColor(c){
+    if(c.is_mountain) return ZONE_COLORS.mountain;
+    if(c.zone_type==='citadel') return ZONE_COLORS[`citadel_${c.zone_player}`];
+    if(c.zone_type==='level') return ZONE_COLORS[`level_${c.zone_player}_${c.zone_level}`];
+    return ZONE_COLORS.battlefield;
+}
+
+function render(){
+    const W=canvas.width, H=canvas.height;
+    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg'); ctx.fillRect(0,0,W,H);
+    if(!STATE) return;
+
+    // Hexes
+    for(const c of STATE.board||[]){
+        const {x,y}=hexToPixel(c.col,c.row);
+        if(x<-50||x>W+50||y<-50||y>H+50) continue;
+        let fill=getZoneColor(c), stroke='#1a2235', lw=0.5;
+        const hl = highlightHexes.find(h=>h.col===c.col&&h.row===c.row);
+        if(hl){
+            if(hl.type==='move'||hl.type==='place'){fill='rgba(0,255,136,.12)';stroke='#00ff88';lw=1.5;}
+            else if(hl.type==='attack'){fill='rgba(255,61,61,.15)';stroke='#ff3d3d';lw=1.5;}
+            else if(hl.type==='special'){fill='rgba(0,229,255,.12)';stroke='#00e5ff';lw=1.5;}
+        }
+        if(hoverHex&&hoverHex.col===c.col&&hoverHex.row===c.row){stroke='#fff';lw=1.5;}
+        drawHex(x,y,HEX_SIZE-1,fill,stroke,lw);
+
+        if(c.is_mountain){
+            ctx.fillStyle='#3a3020';ctx.font=`${HEX_SIZE*.65*zoom}px sans-serif`;
+            ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('\u25B2',x,y);
+        }
+        if(c.zone_type==='citadel'){
+            ctx.fillStyle=c.zone_player===MY_PLAYER?'#00e5ff':'#ff3d3d';
+            ctx.font=`bold ${HEX_SIZE*.55*zoom}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+            ctx.fillText('\u2655',x,y);
+        }
+    }
+
+    // Zone labels
+    const labels = [{r:0,t:'CITADEL',p:1},{r:1.5,t:'LV0',p:1},{r:3.5,t:'LV1',p:1},{r:5.5,t:'LV2',p:1},
+        {r:8,t:'BATTLEFIELD',p:0},{r:10.5,t:'LV2',p:2},{r:12.5,t:'LV1',p:2},{r:14.5,t:'LV0',p:2},{r:16,t:'CITADEL',p:2}];
+    ctx.font=`${9*zoom}px Orbitron,monospace`;ctx.textAlign='left';ctx.textBaseline='middle';
+    for(const l of labels){
+        const {y}=hexToPixel(0,l.r);
+        ctx.fillStyle=l.p===MY_PLAYER?'#00e5ff44':l.p===(3-MY_PLAYER)?'#ff3d3d44':'#ffffff22';
+        ctx.fillText(l.t,6,y);
+    }
+
+    // Last-move trail (draw before units so units render on top)
+    for(const p of [1,2]){
+        const lm = lastMove[p];
+        if(!lm) continue;
+        const from = hexToPixel(lm.fromCol, lm.fromRow);
+        const to = hexToPixel(lm.toCol, lm.toRow);
+        const color = p === MY_PLAYER ? 'rgba(0,229,255,0.25)' : 'rgba(255,61,61,0.25)';
+        // Trail line
+        ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y);
+        ctx.strokeStyle = color; ctx.lineWidth = 3*zoom; ctx.setLineDash([4*zoom,4*zoom]);
+        ctx.stroke(); ctx.setLineDash([]);
+        // Origin marker
+        drawHex(from.x, from.y, HEX_SIZE*0.4, 'transparent', p===MY_PLAYER?'#00e5ff55':'#ff3d3d55', 1.5);
+    }
+
+    // Units
+    for(const u of [...(STATE.my_units||[]),...(STATE.enemy_units||[])]){
+        if(!u.placed) continue;
+        // Check for active animation
+        const anim = anims.find(a => a.id === u.id && a.type !== 'death');
+        let ux, uy;
+        if(anim){
+            const from = hexToPixel(anim.fromCol, anim.fromRow);
+            const to = hexToPixel(anim.toCol, anim.toRow);
+            ux = from.x + (to.x - from.x) * anim.progress;
+            uy = from.y + (to.y - from.y) * anim.progress;
+        } else {
+            const p = hexToPixel(u.col, u.row);
+            ux = p.x; uy = p.y;
+        }
+        if(ux<-50||ux>W+50||uy<-50||uy>H+50) continue;
+
+        // Last-move pulsing ring
+        const isLastMove = (lastMove[u.owner]?.id === u.id) && !anim;
+        if(isLastMove){
+            const pulse = 0.7 + 0.3*Math.sin(performance.now()/300);
+            const rc = HEX_SIZE*0.82*zoom;
+            ctx.beginPath(); ctx.arc(ux,uy,rc,0,Math.PI*2);
+            ctx.strokeStyle = u.owner===MY_PLAYER ? `rgba(0,229,255,${pulse})` : `rgba(255,61,61,${pulse})`;
+            ctx.lineWidth = 2.5*zoom; ctx.stroke();
+        }
+
+        drawUnit(ux,uy,u);
+    }
+
+    // Death animations (flash + fade)
+    for(const a of anims){
+        if(a.type !== 'death') continue;
+        const {x,y} = hexToPixel(a.fromCol, a.fromRow);
+        const alpha = 1 - a.progress;
+        const sz = HEX_SIZE*0.6*zoom*(1 + a.progress*0.5);
+        ctx.beginPath(); ctx.arc(x,y,sz,0,Math.PI*2);
+        ctx.fillStyle = `rgba(255,100,50,${alpha*0.6})`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255,200,50,${alpha})`;
+        ctx.lineWidth = 2; ctx.stroke();
+    }
+
+}
+
+function drawUnit(x, y, u){
+    const own = u.owner===MY_PLAYER;
+    const sel = selectedUnit?.id===u.id;
+    const r = HEX_SIZE*.62*zoom;
+
+    // Try sprite first
+    const spriteKey = own||u.revealed ? u.type : 'unknown';
+    if(SPRITES[spriteKey]){
+        ctx.save();
+        ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.clip();
+        ctx.drawImage(SPRITES[spriteKey], x-r, y-r, r*2, r*2);
+        ctx.restore();
+        ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+        ctx.strokeStyle = sel?'#fff':own?'#00e5ff':'#ff3d3d'; ctx.lineWidth=sel?2.5:1.5; ctx.stroke();
+        if(own||u.revealed){
+            const bw=8*zoom, bh=5.5*zoom;
+            ctx.fillStyle='#000';ctx.fillRect(x-bw,y+r-bh*2,bw*2,bh*2);
+            ctx.fillStyle='#ffd700';ctx.font=`bold ${9*zoom}px Orbitron`;ctx.textAlign='center';ctx.textBaseline='middle';
+            ctx.fillText(u.attack,x,y+r-bh);
+        }
+        return;
+    }
+
+    // Fallback: canvas shapes
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle = own ? (sel?'#0a2a50':'#0a1530') : (u.revealed?'#2a0a0a':'#1a1a1a');
+    ctx.fill();
+    ctx.strokeStyle = sel?'#fff':own?'#00e5ff':(u.revealed?'#ff3d3d':'#444');
+    ctx.lineWidth = sel?2.5:1.5; ctx.stroke();
+
+    ctx.fillStyle = own?'#00e5ff':(u.revealed?'#ff3d3d':'#666');
+    ctx.font = `bold ${HEX_SIZE*.35*zoom}px Orbitron,monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(own||u.revealed?u.abbr:'??', x, y-2*zoom);
+
+    if(own||u.revealed){
+        ctx.fillStyle='#ffd700'; ctx.font=`${HEX_SIZE*.3*zoom}px Share Tech Mono,monospace`;
+        ctx.fillText(u.attack, x, y+r*.5);
+    }
+    if(own && u.revealed){
+        ctx.fillStyle='#ff3d3d';ctx.beginPath();ctx.arc(x+r*.7,y-r*.7,2.5*zoom,0,Math.PI*2);ctx.fill();
+    }
+}
+
+// ============================================================
+// INPUT – click, drag-pan, wheel-zoom, touch pinch
+// ============================================================
+
+// Mouse hover
+canvas.addEventListener('mousemove', e => {
+    if(isDragging) return;
+    const rc=canvas.getBoundingClientRect();
+    const h=pixelToHex(e.clientX-rc.left, e.clientY-rc.top);
+    if(h&&(!hoverHex||hoverHex.col!==h.col||hoverHex.row!==h.row)){hoverHex=h;render();}
+});
+
+// Left-click: short click = hex action, drag = pan
+let clickStart = {x:0, y:0};
+canvas.addEventListener('mousedown', e => {
+    clickStart = {x: e.clientX, y: e.clientY};
+    dragStartX = e.clientX; dragStartY = e.clientY;
+    dragCamX = camX; dragCamY = camY;
+    isDragging = false;
+});
+
+canvas.addEventListener('mousemove', e => {
+    if(e.buttons === 0) return; // no button held
+    const dx = e.clientX - clickStart.x, dy = e.clientY - clickStart.y;
+    if(!isDragging && dx*dx + dy*dy > 16) {
+        isDragging = true;
+        canvas.style.cursor = 'grabbing';
+    }
+    if(isDragging){
+        camX = dragCamX + (e.clientX - dragStartX);
+        camY = dragCamY + (e.clientY - dragStartY);
+        render();
+    }
+});
+
+canvas.addEventListener('mouseup', e => {
+    if(isDragging){
+        isDragging = false;
+        canvas.style.cursor = 'default';
+        return;
+    }
+    // Short click = hex action
+    const rc=canvas.getBoundingClientRect();
+    const h=pixelToHex(e.clientX-rc.left, e.clientY-rc.top);
+    if(!h||!STATE) return;
+    STATE.phase==='placement' ? handlePlacementClick(h.col,h.row) : handleBattleClick(h.col,h.row);
+});
+
+canvas.addEventListener('mouseleave', () => {
+    if(isDragging){ isDragging=false; canvas.style.cursor='default'; }
+});
+
+// Wheel zoom
+canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rc = canvas.getBoundingClientRect();
+    const mx = e.clientX - rc.left, my = e.clientY - rc.top;
+
+    const oldZoom = zoom;
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    zoom = Math.max(0.3, Math.min(5.0, zoom * delta));
+    userZoomed = true;
+
+    // Zoom toward mouse position
+    camX = mx - (mx - camX) * (zoom / oldZoom);
+    camY = my - (my - camY) * (zoom / oldZoom);
+    render();
+}, {passive: false});
+
+// Touch support: pinch-zoom + drag-pan
+let touches = [];
+let lastTouchDist = 0;
+let lastTouchMid = {x:0, y:0};
+
+canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    touches = Array.from(e.touches);
+    if(touches.length === 1){
+        dragStartX = touches[0].clientX; dragStartY = touches[0].clientY;
+        dragCamX = camX; dragCamY = camY;
+        clickStart = {x: touches[0].clientX, y: touches[0].clientY};
+    }
+    if(touches.length === 2){
+        lastTouchDist = Math.hypot(touches[1].clientX-touches[0].clientX, touches[1].clientY-touches[0].clientY);
+        lastTouchMid = {x:(touches[0].clientX+touches[1].clientX)/2, y:(touches[0].clientY+touches[1].clientY)/2};
+    }
+}, {passive: false});
+
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const ts = Array.from(e.touches);
+    if(ts.length === 1){
+        camX = dragCamX + (ts[0].clientX - dragStartX);
+        camY = dragCamY + (ts[0].clientY - dragStartY);
+        isDragging = true;
+        render();
+    }
+    if(ts.length === 2){
+        const dist = Math.hypot(ts[1].clientX-ts[0].clientX, ts[1].clientY-ts[0].clientY);
+        const mid = {x:(ts[0].clientX+ts[1].clientX)/2, y:(ts[0].clientY+ts[1].clientY)/2};
+        const rc = canvas.getBoundingClientRect();
+        const mx = mid.x - rc.left, my = mid.y - rc.top;
+        const oldZoom = zoom;
+        zoom = Math.max(0.3, Math.min(3.0, zoom * (dist / lastTouchDist)));
+        camX = mx - (mx - camX) * (zoom / oldZoom);
+        camY = my - (my - camY) * (zoom / oldZoom);
+        // Also pan
+        camX += mid.x - lastTouchMid.x;
+        camY += mid.y - lastTouchMid.y;
+        lastTouchDist = dist;
+        lastTouchMid = mid;
+        isDragging = true;
+        render();
+    }
+}, {passive: false});
+
+canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    if(!isDragging && touches.length === 1){
+        const rc = canvas.getBoundingClientRect();
+        const h = pixelToHex(touches[0].clientX-rc.left, touches[0].clientY-rc.top);
+        if(h && STATE){
+            STATE.phase==='placement' ? handlePlacementClick(h.col,h.row) : handleBattleClick(h.col,h.row);
+        }
+    }
+    isDragging = false;
+    touches = Array.from(e.touches);
+}, {passive: false});
+
+// Prevent context menu on canvas
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// Keyboard: Escape + Home to reset view
+document.addEventListener('keydown', e => {
+    if(e.key==='Escape') cancelSelection();
+    if(e.key==='Home'){ userZoomed=false; resizeCanvas(); }
+});
+
+function handlePlacementClick(col,row){
+    if(!selectedUnit){
+        // Click on already-placed unit to re-select it
+        const u=(STATE.my_units||[]).find(u=>u.col===col&&u.row===row);
+        if(u) selectPlacementUnit(u.id);
+        return;
+    }
+    const hl=highlightHexes.find(h=>h.col===col&&h.row===row&&h.type==='place');
+    if(hl){
+        // Place unit – doPlace will auto-advance to next unplaced
+        doPlace(selectedUnit.id, col, row);
+    }
+}
+
+function handleBattleClick(col,row){
+    if(!STATE||STATE.current_player!==MY_PLAYER) return;
+    if(selectedUnit){
+        const hl=highlightHexes.find(h=>h.col===col&&h.row===row);
+        if(hl){
+            if(hl.type==='move') doMove(selectedUnit.id,col,row);
+            else if(hl.type==='attack') doAttack(selectedUnit.id,hl.target_id);
+            else if(hl.type==='special') doSpecial(selectedUnit.id,hl.special_action,hl.target_id);
+            return;
+        }
+        const u=(STATE.my_units||[]).find(u=>u.col===col&&u.row===row);
+        if(u){ selectBattleUnit(u.id); return; }
+        cancelSelection();
+    } else {
+        const u=(STATE.my_units||[]).find(u=>u.col===col&&u.row===row);
+        if(u) selectBattleUnit(u.id);
+    }
+}
+
+// ============================================================
+// RESIZE & CAMERA
+// ============================================================
+let userZoomed = false; // track if user manually zoomed
+
+function resizeCanvas(){
+    const w=document.getElementById('canvas-wrap');
+    if(!w) return;
+    const tb=document.getElementById('top-bar');
+    const ab=document.getElementById('action-bar');
+    const tbH = tb ? tb.offsetHeight : 0;
+    const abH = ab ? ab.offsetHeight : 0;
+    const cw = w.clientWidth || window.innerWidth;
+    const ch = (w.clientHeight || window.innerHeight) - tbH - abH;
+    canvas.width = Math.max(100, cw);
+    canvas.height = Math.max(100, ch);
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    if(!userZoomed) autoFitZoom();
+    else centerCamera();
+    render();
+}
+
+function getBoardBounds(){
+    // Compute actual pixel bounds from widest and tallest board extents
+    // Widest row: row 8, cols 0-16. Tallest: rows 0-16.
+    const corners = [
+        hexToPixelRaw(0, 8),   // leftmost hex (row 8 col 0)
+        hexToPixelRaw(16, 8),  // rightmost hex
+        hexToPixelRaw(8, 0),   // top citadel
+        hexToPixelRaw(8, 16),  // bottom citadel
+    ];
+    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+    for(const p of corners){
+        if(p.x<minX) minX=p.x; if(p.x>maxX) maxX=p.x;
+        if(p.y<minY) minY=p.y; if(p.y>maxY) maxY=p.y;
+    }
+    return {minX, maxX, minY, maxY};
+}
+
+function centerCamera(){
+    const b = getBoardBounds();
+    const bw=(b.maxX-b.minX+HEX_SIZE*3)*zoom;
+    const bh=(b.maxY-b.minY+HEX_SIZE*3)*zoom;
+    camX=(canvas.width-bw)/2 - b.minX*zoom + HEX_SIZE*1.5*zoom;
+    camY=(canvas.height-bh)/2 - b.minY*zoom + HEX_SIZE*1.5*zoom;
+}
+
+function autoFitZoom(){
+    const b = getBoardBounds();
+    const bw = b.maxX - b.minX + HEX_SIZE*4;
+    const bh = b.maxY - b.minY + HEX_SIZE*4;
+    const zx = canvas.width * 0.95 / bw;
+    const zy = canvas.height * 0.95 / bh;
+    zoom = Math.min(zx, zy);
+    zoom = Math.max(0.3, Math.min(5.0, zoom));
+    centerCamera();
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ============================================================
+// POLLING
+// ============================================================
+setInterval(()=>{
+    if(!GAME_ID||!STATE||STATE.phase==='finished') return;
+    if(MODE==='online' && (STATE.current_player!==MY_PLAYER||STATE.phase==='placement')) fetchState();
+    if(MODE==='ai' && STATE.phase==='battle' && STATE.current_player!==MY_PLAYER) fetchState();
+}, 2000);
+
+// Pulse render for last-move glow (every 100ms when in battle)
+setInterval(()=>{
+    if(STATE && STATE.phase==='battle' && (lastMove[1]||lastMove[2]) && anims.length===0) render();
+}, 100);
+
+// ============================================================
+// INIT
+// ============================================================
+if(TOKEN){
+    apiFetch('/api/auth/me',null,'GET').then(r=>r.ok?showScreen('lobby'):showScreen('auth')).catch(()=>showScreen('auth'));
+} else showScreen('auth');
+</script>
+</body>
+</html>

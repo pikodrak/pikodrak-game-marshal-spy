@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+game03.db
+game_logs/
+*.log
+.env
+node_modules/
