@@ -2,1516 +2,1832 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MARSHAL & SPY</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Maršál & Špión – v1.0</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+/* ============================================================
+   DESIGN TOKENS – tweak these to reskin the whole UI
+   ============================================================ */
 :root{
-  --bg:#07080f;--panel:#0c1021;--border:#1a2744;--accent:#00e5ff;--accent2:#ff3d3d;
-  --text:#c8d6e5;--text-dim:#5a6a7a;--gold:#ffd700;--green:#00ff88;
-  --font-head:'Orbitron',monospace;--font-mono:'Share Tech Mono',monospace;
-}
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{background:var(--bg);color:var(--text);font-family:var(--font-mono);overflow:hidden;height:100%;width:100%}
-#app{display:flex;height:100%;width:100%}
+  /* backgrounds */
+  --bg:            #0a0d16;
+  --panel:         #12182a;
+  --panel-2:       #0d1220;
+  --border:        #2a3450;
+  --border-dim:    #1a2033;
 
-/* --- Screens --- */
-.screen{display:none;width:100%;height:100%;align-items:center;justify-content:center;overflow-y:auto}
+  /* text */
+  --text:          #d9e2ec;
+  --text-dim:      #6c7b93;
+  --text-mute:     #4a5670;
+
+  /* accents */
+  --accent:        #4fd1ff;    /* primary */
+  --accent-2:      #ff5470;    /* danger */
+  --gold:          #ffd466;
+  --green:         #4ade80;
+
+  /* level body colors (per rules) */
+  --level-0-body:  #aed6f1;    /* pale blue */
+  --level-1-body:  #abebc6;    /* pale green */
+  --level-2-body:  #f5cba7;    /* pale orange */
+
+  /* unit borders */
+  --concealed:     #1e6b3a;    /* dark green */
+  --revealed:      #f1c40f;    /* yellow */
+  --corrupted:     #c0392b;    /* red inner ring */
+
+  /* player flags */
+  --p1-flag:       #2e86de;    /* blue (you) */
+  --p2-flag:       #c0392b;    /* red (opponent) */
+
+  /* board zones */
+  --zone-citadel:  #3a2a1a;
+  --zone-battlefield: #1a1f2e;
+  --zone-mountain: #353f5a;
+
+  /* fonts */
+  --font:          'Segoe UI', 'Roboto', system-ui, sans-serif;
+  --font-mono:     'Consolas', 'Monaco', monospace;
+
+  /* dims */
+  --panel-w:       320px;      /* right panel width on PC */
+  --bar-h:         36px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;width:100%;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden;user-select:none;-webkit-user-select:none}
+button{font-family:inherit}
+input{font-family:inherit}
+
+/* ============================================================
+   GENERIC
+   ============================================================ */
+.btn{padding:8px 14px;background:transparent;border:1px solid var(--border);color:var(--text);font-size:13px;cursor:pointer;border-radius:3px;transition:all .15s;letter-spacing:.3px}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:600}
+.btn.primary:hover{filter:brightness(1.1)}
+.btn.danger{border-color:var(--accent-2);color:var(--accent-2)}
+.btn.danger:hover{background:rgba(255,84,112,.1)}
+.btn.ghost{background:transparent;border-color:var(--border-dim);color:var(--text-dim);font-size:12px;padding:6px 10px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+input[type=text],input[type=password],input[type=number]{
+  width:100%;padding:8px 10px;background:var(--panel-2);border:1px solid var(--border);
+  color:var(--text);border-radius:3px;font-size:13px;outline:none
+}
+input:focus{border-color:var(--accent)}
+
+h1{font-size:22px;font-weight:700;letter-spacing:2px;color:var(--accent)}
+h2{font-size:15px;font-weight:600;color:var(--accent);margin-bottom:10px;letter-spacing:1px}
+h3{font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+
+.screen{display:none;width:100%;height:100%;overflow:auto}
 .screen.active{display:flex}
 
-/* Auth */
-.auth-box{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:40px;width:380px;text-align:center;position:relative}
-.auth-box::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
-.auth-box h1{font-family:var(--font-head);color:var(--accent);font-size:24px;letter-spacing:4px;margin-bottom:4px}
-.auth-box h2{color:var(--text-dim);font-size:12px;margin-bottom:24px;letter-spacing:2px;text-transform:uppercase}
-.auth-box input{width:100%;padding:10px 12px;margin:5px 0;background:#0a0e1a;border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:13px}
-.auth-box input:focus{outline:none;border-color:var(--accent)}
-.auth-box .error{color:var(--accent2);font-size:12px;margin-top:8px}
-.toggle-link{color:var(--text-dim);font-size:11px;margin-top:12px;cursor:pointer}
-.toggle-link span{color:var(--accent)}
+.err{color:var(--accent-2);font-size:12px;margin-top:6px;min-height:16px}
+.ok-msg{color:var(--green);font-size:12px;margin-top:6px}
 
-/* Buttons */
-.btn{padding:8px 16px;background:transparent;border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:12px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:all .15s}
-.btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,.05)}
-.btn.primary{border-color:var(--accent);color:var(--accent)}
-.btn.primary:hover{background:rgba(0,229,255,.15)}
-.btn.danger{border-color:var(--accent2);color:var(--accent2)}
-.btn.danger:hover{background:rgba(255,61,61,.1)}
+/* ============================================================
+   AUTH
+   ============================================================ */
+#auth-screen{align-items:center;justify-content:center}
+.auth-box{width:360px;max-width:92%;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:30px 26px;text-align:center}
+.auth-box h1{margin-bottom:6px}
+.auth-box .sub{color:var(--text-dim);font-size:11px;letter-spacing:3px;text-transform:uppercase;margin-bottom:22px}
+.auth-box input{margin:5px 0}
+.auth-box .btn{width:100%;margin-top:10px}
+.auth-tabs{display:flex;gap:4px;margin-bottom:16px}
+.auth-tabs button{flex:1;padding:6px;background:transparent;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;border-radius:3px}
+.auth-tabs button.active{border-color:var(--accent);color:var(--accent)}
 
-/* Lobby */
-.lobby-wrap{display:flex;flex-direction:column;gap:16px;width:520px;max-width:95%}
-.lobby-box{background:var(--panel);border:1px solid var(--border);padding:20px;position:relative}
-.lobby-box::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
-.lobby-box h2{font-family:var(--font-head);color:var(--accent);font-size:14px;letter-spacing:2px;margin-bottom:12px}
-.btn-row{display:flex;gap:8px;flex-wrap:wrap}
-.game-list{max-height:160px;overflow-y:auto;margin-top:8px}
-.game-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #111827;font-size:12px}
-.user-bar{font-size:11px;color:var(--text-dim);text-align:center}
-.user-bar span.elo{color:var(--gold);font-weight:bold}
-.user-bar a{color:var(--accent);cursor:pointer;margin-left:8px}
+/* ============================================================
+   LOBBY
+   ============================================================ */
+#lobby-screen{align-items:flex-start;justify-content:center;padding:24px 16px}
+.lobby{width:640px;max-width:100%;display:flex;flex-direction:column;gap:14px}
+.lobby-top{display:flex;justify-content:space-between;align-items:center;padding:0 4px}
+.user-info{display:flex;gap:14px;align-items:center;font-size:13px;color:var(--text-dim)}
+.user-info .name{color:var(--text);font-weight:600}
+.user-info .elo{color:var(--gold)}
+.lobby-card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.list-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-dim);font-size:12px}
+.list-row:last-child{border-bottom:none}
+.list-row .meta{color:var(--text-dim);font-size:11px}
 
-/* Leaderboard */
-.lb-table{width:100%;border-collapse:collapse;font-size:12px}
-.lb-table th{color:var(--accent);text-align:left;padding:4px 8px;border-bottom:1px solid var(--border);font-family:var(--font-head);font-size:10px;letter-spacing:1px}
-.lb-table td{padding:4px 8px;border-bottom:1px solid #0d1225}
-.lb-table tr:hover td{background:rgba(0,229,255,.03)}
-.lb-table .rank{color:var(--gold);width:30px}
-.lb-table .elo-val{color:var(--gold)}
+.nav-links{display:flex;gap:12px;justify-content:center;padding:8px;flex-wrap:wrap}
+.nav-links a{color:var(--accent);font-size:12px;cursor:pointer;text-transform:uppercase;letter-spacing:1px}
+.nav-links a:hover{color:var(--gold)}
 
-/* Game */
-#game-screen{flex-direction:column;align-items:stretch;justify-content:stretch}
-#game-container{display:flex;flex:1;overflow:hidden;width:100%}
-#canvas-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden}
-canvas{flex:1;display:block;min-height:0;width:100%}
-#side-panel{width:260px;min-width:260px;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-#side-panel.hidden{display:none}
-#info-panel{padding:10px;flex:1;overflow-y:auto}
-#info-panel h3{font-family:var(--font-head);color:var(--accent);font-size:11px;letter-spacing:1px;margin-bottom:6px}
-#log-panel{padding:10px;border-top:1px solid var(--border);max-height:180px;overflow-y:auto}
-#log-panel .entry{font-size:10px;color:var(--text-dim);padding:2px 0;border-bottom:1px solid #0a0e1a}
+/* ============================================================
+   GAME SCREEN
+   ============================================================ */
+#game-screen{flex-direction:column;align-items:stretch}
+#top-bar{height:var(--bar-h);display:flex;align-items:center;padding:0 10px;gap:12px;background:var(--panel);border-bottom:1px solid var(--border);font-size:12px}
+#top-bar .phase{color:var(--accent);font-weight:600;letter-spacing:1px}
+#top-bar .turn-banner{flex:1;text-align:center;font-weight:600}
+#top-bar .turn-banner.your-turn{color:var(--green)}
+#top-bar .turn-banner.opp-turn{color:var(--accent-2)}
+#top-bar .timer{color:var(--gold);font-family:var(--font-mono)}
+#top-bar .menu-btn{cursor:pointer;color:var(--text-dim);padding:4px 8px}
+#top-bar .menu-btn:hover{color:var(--accent)}
 
-#top-bar{height:32px;min-height:32px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 8px;gap:10px;font-size:11px}
-#top-bar .turn{color:var(--accent);font-family:var(--font-head);font-size:11px;letter-spacing:1px}
-#top-bar .phase{color:var(--gold)}
-#action-bar{height:38px;min-height:38px;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:6px}
+#game-body{flex:1;display:flex;overflow:hidden}
+#board-area{flex:1;position:relative;background:var(--bg);overflow:hidden}
+#board-canvas{display:block;width:100%;height:100%;touch-action:none}
 
-/* Mobile */
-@media(max-width:700px){
-  /* Auth */
-  .auth-box{width:90%;max-width:360px;padding:24px 20px}
-  .auth-box h1{font-size:18px;letter-spacing:2px}
+#right-panel{width:var(--panel-w);min-width:var(--panel-w);background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column}
+#right-panel .panel-half{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+#right-panel .panel-half+.panel-half{border-top:1px solid var(--border)}
+.panel-title{padding:8px 12px;font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:1.5px;border-bottom:1px solid var(--border-dim);font-weight:600}
+.panel-body{flex:1;overflow-y:auto;padding:10px 12px}
 
-  /* Lobby */
-  .lobby-wrap{width:95%;max-width:400px;gap:10px}
-  .lobby-box{padding:12px}
-  .lobby-box h2{font-size:12px;margin-bottom:8px}
-  .btn-row{gap:4px}
-  .game-list{max-height:120px}
+/* info panel */
+#info-content{font-size:13px}
+#info-content .unit-name{font-size:14px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+#info-content .flag{width:12px;height:12px;display:inline-block;border-radius:2px}
+#info-content .reveal-pill{display:inline-block;padding:2px 6px;border-radius:2px;font-size:10px;margin-left:4px;vertical-align:middle}
+#info-content .reveal-pill.rev{background:var(--revealed);color:#000}
+#info-content .reveal-pill.hid{background:var(--concealed);color:#fff}
+#info-content .stat{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;border-bottom:1px solid var(--border-dim)}
+#info-content .stat .lbl{color:var(--text-dim)}
+#info-content .stat .val{font-weight:600}
+#info-content .stat .val.mod-red{color:var(--corrupted)}
+#info-content .desc{margin-top:8px;color:var(--text-dim);font-size:11px;line-height:1.5;font-style:italic}
+#info-content.hint{color:var(--text-mute);font-size:12px;text-align:center;padding-top:20px}
 
-  /* Game bars */
-  #top-bar{height:28px;min-height:28px;padding:0 4px;gap:4px;font-size:9px}
-  #top-bar .turn{font-size:9px;letter-spacing:0}
-  #action-bar{height:34px;min-height:34px;gap:4px}
-  .btn{padding:5px 8px;font-size:9px;letter-spacing:0}
+/* unit picker (placement phase) */
+#unit-picker{padding:6px}
+#unit-picker .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.picker-btn{background:var(--panel-2);border:1px solid var(--border-dim);padding:6px 2px;font-size:11px;cursor:pointer;border-radius:3px;text-align:center;color:var(--text);position:relative}
+.picker-btn:hover{border-color:var(--accent)}
+.picker-btn.active{border-color:var(--accent);background:rgba(79,209,255,.08)}
+.picker-btn.exhausted{opacity:.35;cursor:not-allowed}
+.picker-btn .abbr{font-weight:700;font-size:14px}
+.picker-btn .cnt{display:block;color:var(--text-dim);font-size:10px;margin-top:2px;font-family:var(--font-mono)}
+.picker-btn .nm{display:block;font-size:9px;color:var(--text-mute);margin-top:1px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-  /* Side panel: hidden by default, overlay when shown */
-  #side-panel{display:none}
-  #side-panel.shown{display:flex;width:75vw;max-width:260px;position:fixed;right:0;top:0;bottom:0;z-index:50;background:var(--panel);border-left:1px solid var(--border);box-shadow:-4px 0 20px rgba(0,0,0,.5)}
+/* formation loader */
+#form-loader{padding:6px;display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border-dim)}
+#form-loader .fbtn{padding:4px 8px;background:var(--panel-2);border:1px solid var(--border-dim);font-size:11px;cursor:pointer;border-radius:3px;color:var(--text)}
+#form-loader .fbtn:hover{border-color:var(--accent)}
+#form-loader .fbtn.empty{color:var(--text-mute);font-style:italic}
 
-  /* Overlay dialog */
-  #overlay>div{padding:20px;max-width:90%}
+/* log */
+#log-panel .entry{font-size:11px;color:var(--text-dim);padding:3px 0;border-bottom:1px solid var(--border-dim);line-height:1.3}
+#log-panel .entry .t{color:var(--accent);font-family:var(--font-mono);margin-right:4px;font-size:10px}
 
-  /* Manual */
-  #manual-screen{padding:10px}
-  #manual-screen>div{max-width:100%}
-  .manual-section{padding:10px}
-  .manual-section h2{font-size:11px}
-  .manual-section p,.manual-section li{font-size:11px}
-  .manual-table{font-size:9px}
-  .manual-table th{font-size:8px}
-  .manual-table td,.manual-table th{padding:3px 4px}
-  .mb-zone{width:60px;font-size:8px;padding:2px 4px}
-  .mb-row{font-size:10px}
-}
+/* action bar */
+#action-bar{height:44px;min-height:44px;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:6px;padding:0 10px}
+#action-bar .btn{font-size:12px;padding:7px 12px}
+#action-bar .selected-unit{margin-right:auto;font-size:11px;color:var(--text-dim);padding-left:6px}
 
-/* Unit cards */
-.unit-card{background:#0a0e1a;border:1px solid #151d30;padding:6px 8px;margin:3px 0;cursor:pointer;font-size:11px;display:flex;align-items:center;gap:6px;transition:border-color .1s}
-.unit-card:hover{border-color:var(--accent)}
-.unit-card.selected{border-color:var(--accent);background:#0d1530}
-.unit-card .abbr{font-family:var(--font-head);font-size:10px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);background:#080c18}
-.unit-card .info{flex:1}
-.unit-card .name{color:var(--text);font-size:11px}
-.unit-card .stats{color:var(--text-dim);font-size:10px}
-.unit-card .atk{color:var(--gold);font-family:var(--font-head);font-size:12px}
-.unit-card.placed{opacity:.5}
+/* mobile unplaced swipe bar */
+#mobile-picker{display:none;height:60px;min-height:60px;background:var(--panel);border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;white-space:nowrap;padding:6px}
+#mobile-picker .picker-btn{display:inline-block;width:52px;height:48px;vertical-align:top;margin-right:4px}
 
-/* Manual */
-.manual-section{background:var(--panel);border:1px solid var(--border);padding:16px;margin-bottom:12px;position:relative}
-.manual-section::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
-.manual-section h2{font-family:var(--font-head);color:var(--accent);font-size:13px;letter-spacing:2px;margin-bottom:8px}
-.manual-section p{font-size:12px;line-height:1.6;margin-bottom:6px}
-.manual-section ul{font-size:12px;line-height:1.8;padding-left:16px}
-.manual-section li{margin:2px 0}
-.manual-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
-.manual-table th{color:var(--accent);text-align:left;padding:4px 6px;border-bottom:1px solid var(--border);font-family:var(--font-head);font-size:10px;letter-spacing:1px}
-.manual-table td{padding:4px 6px;border-bottom:1px solid #0d1225}
-.manual-table tr:hover td{background:rgba(0,229,255,.03)}
-.manual-board{margin:8px 0}
-.mb-row{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12px}
-.mb-zone{display:inline-block;width:80px;text-align:center;padding:3px 6px;font-size:10px;font-family:var(--font-head);letter-spacing:1px;color:#fff;border:1px solid var(--border)}
-
-/* Overlay */
-#overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.9);z-index:100;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+/* overlay */
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:20px}
 #overlay.active{display:flex}
-#overlay .title{font-family:var(--font-head);font-size:20px;color:var(--accent);letter-spacing:3px}
-#overlay .subtitle{color:var(--text-dim);font-size:14px}
+#overlay .dialog{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:24px;max-width:420px;width:100%;text-align:center}
+#overlay .dialog h2{font-size:18px;margin-bottom:8px}
+#overlay .dialog p{color:var(--text-dim);font-size:13px;margin-bottom:16px;line-height:1.5}
+#overlay .dialog .row{display:flex;gap:8px;justify-content:center}
 
-/* Sprite system: images load from /static/img/units/{type}.png */
-/* Fallback is canvas-drawn shapes when sprites not found */
+/* countdown badge */
+#countdown-badge{position:absolute;top:42px;left:50%;transform:translateX(-50%);padding:6px 12px;background:var(--accent-2);color:#fff;border-radius:3px;font-weight:600;font-size:13px;z-index:50;display:none}
+#countdown-badge.active{display:block}
+
+/* toast */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 18px;background:var(--panel);border:1px solid var(--accent);color:var(--accent);border-radius:3px;z-index:300;font-size:13px;display:none}
+#toast.active{display:block}
+
+/* ============================================================
+   FORMATIONS MANAGER
+   ============================================================ */
+#forms-screen{flex-direction:column}
+#forms-screen #top-bar{background:var(--panel);border-bottom:1px solid var(--border)}
+
+/* ============================================================
+   ADMIN
+   ============================================================ */
+#admin-screen{flex-direction:column;padding:16px;overflow:auto}
+#admin-screen .admin-wrap{max-width:860px;margin:0 auto;width:100%}
+.admin-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+.admin-table th,.admin-table td{padding:6px 8px;border-bottom:1px solid var(--border-dim);text-align:left}
+.admin-table th{color:var(--accent);font-size:11px;text-transform:uppercase;letter-spacing:1px}
+.admin-table input{width:60px;padding:3px 4px;font-size:12px}
+.admin-table .overridden{background:rgba(255,212,102,.08)}
+
+/* ============================================================
+   REPLAY
+   ============================================================ */
+#replay-screen{flex-direction:column;align-items:stretch}
+#replay-screen #replay-controls{background:var(--panel);border-top:1px solid var(--border);padding:8px;display:flex;gap:8px;align-items:center}
+#replay-seek{flex:1;height:6px}
+#replay-info{font-size:11px;color:var(--text-dim);font-family:var(--font-mono)}
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+@media (max-width: 780px){
+  :root{--panel-w:0;--bar-h:32px}
+  .lobby{width:100%}
+  .grid2{grid-template-columns:1fr}
+  .auth-box{padding:22px 18px}
+
+  /* game: no right panel on mobile; show mobile picker during placement */
+  #right-panel{display:none !important}
+  #mobile-picker.show{display:block}
+
+  #top-bar{font-size:11px;padding:0 6px;gap:6px}
+  #action-bar{height:40px;min-height:40px;gap:3px}
+  #action-bar .btn{font-size:11px;padding:5px 8px}
+  #action-bar .selected-unit{display:none}
+
+  .admin-table{font-size:11px}
+  .admin-table input{width:48px}
+}
 </style>
 </head>
 <body>
-<div id="app">
 
-<!-- AUTH -->
+<!-- ========== AUTH SCREEN ========== -->
 <div id="auth-screen" class="screen active">
-<div class="auth-box">
-  <h1>MARSHAL & SPY</h1>
-  <h2>Strategic Warfare</h2>
-  <input id="auth-user" placeholder="CALLSIGN" autocomplete="off" spellcheck="false">
-  <input id="auth-pass" type="password" placeholder="ACCESS CODE">
-  <button class="btn primary" style="width:100%;margin-top:8px" onclick="doAuth()">
-    <span id="auth-btn-text">LOGIN</span>
-  </button>
-  <div class="toggle-link" onclick="toggleAuth()"><span id="auth-toggle-text">New recruit? Register</span></div>
-  <div id="auth-error" class="error"></div>
-</div>
+  <div class="auth-box">
+    <h1>MARŠÁL &amp; ŠPIÓN</h1>
+    <div class="sub">v1.0</div>
+    <div class="auth-tabs">
+      <button id="tab-login" class="active" onclick="showAuthTab('login')">Přihlášení</button>
+      <button id="tab-reg" onclick="showAuthTab('reg')">Registrace</button>
+    </div>
+    <input id="auth-user" type="text" placeholder="Uživatelské jméno" autocomplete="username">
+    <input id="auth-pass" type="password" placeholder="Heslo" autocomplete="current-password">
+    <button class="btn primary" onclick="doAuth()">Pokračovat</button>
+    <div id="auth-err" class="err"></div>
+  </div>
 </div>
 
-<!-- LOBBY -->
-<div id="lobby-screen" class="screen" style="align-items:flex-start;justify-content:flex-start;padding:16px 0">
-<div class="lobby-wrap" style="margin:0 auto">
-  <div class="lobby-box">
-    <h2>DEPLOY</h2>
-    <div class="btn-row">
-      <button class="btn primary" onclick="newGame('ai')">VS AI</button>
-      <button class="btn primary" onclick="newGame('online')">ONLINE PVP</button>
-      <button class="btn primary" onclick="newGame('hotseat')">HOT-SEAT</button>
+<!-- ========== LOBBY SCREEN ========== -->
+<div id="lobby-screen" class="screen">
+  <div class="lobby">
+    <div class="lobby-top">
+      <h1>MARŠÁL &amp; ŠPIÓN</h1>
+      <div class="user-info">
+        <span class="name" id="lobby-username">—</span>
+        <span>ELO <span class="elo" id="lobby-elo">?</span></span>
+        <button class="btn ghost" onclick="logout()">Odhlásit</button>
+      </div>
     </div>
-    <button class="btn" onclick="showScreen('manual')" style="width:100%;margin-top:10px;border-color:var(--gold);color:var(--gold)">&#9881; HOW TO PLAY</button>
-  </div>
-  <div class="lobby-box">
-    <h2>ACTIVE OPS</h2>
-    <button class="btn" onclick="refreshGames()">REFRESH</button>
-    <div id="game-list" class="game-list"></div>
-  </div>
-  <div class="lobby-box">
-    <h2>SAVED GAMES</h2>
-    <div id="saves-list" class="game-list"></div>
-  </div>
-  <div class="lobby-box">
-    <h2>LEADERBOARD</h2>
-    <div id="leaderboard"></div>
-  </div>
-  <div class="lobby-box" id="profile-box">
-    <h2 style="cursor:pointer" onclick="document.getElementById('profile-detail').style.display=document.getElementById('profile-detail').style.display==='none'?'block':'none'">
-      <span id="lobby-user" style="color:var(--accent)"></span>
-      <span style="color:var(--text-dim);font-size:10px;margin-left:8px">ELO: <span class="elo" id="lobby-elo">1000</span></span>
-      <span style="color:var(--text-dim);font-size:9px;float:right">&#9660; SETTINGS</span>
-    </h2>
-    <div id="profile-detail" style="display:none">
-      <div style="margin:8px 0;font-size:11px;color:var(--text-dim)">Change password</div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <input id="old-pass" type="password" placeholder="Current password" style="flex:1;padding:6px;background:#0a0e1a;border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:11px">
-        <input id="new-pass" type="password" placeholder="New password" style="flex:1;padding:6px;background:#0a0e1a;border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:11px">
-        <button class="btn" onclick="changePassword()">CHANGE</button>
+
+    <div class="lobby-card">
+      <h2>Nová hra</h2>
+      <div class="grid3">
+        <button class="btn primary" onclick="newGame('ai')">Proti AI</button>
+        <button class="btn" onclick="newGame('online')">Online</button>
+        <button class="btn" onclick="newGame('hotseat')">Hotseat</button>
       </div>
-      <div id="pass-msg" style="font-size:11px;margin-top:4px"></div>
-      <div style="margin:10px 0 4px;font-size:11px;color:var(--text-dim)">Email (optional)</div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input id="user-email" type="email" placeholder="email@example.com" style="flex:1;padding:6px;background:#0a0e1a;border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:11px">
-        <button class="btn" onclick="saveEmail()">SAVE</button>
+    </div>
+
+    <div class="lobby-card">
+      <h2>Otevřené online hry</h2>
+      <div id="open-games-list"><div class="list-row meta">načítám…</div></div>
+    </div>
+
+    <div class="lobby-card">
+      <h2>Mé formace (rozestavení)</h2>
+      <div id="presets-list"><div class="list-row meta">—</div></div>
+      <div style="margin-top:10px">
+        <button class="btn" onclick="openFormations()">Upravit formace</button>
       </div>
-      <div id="email-msg" style="font-size:11px;margin-top:4px"></div>
-      <div style="margin-top:10px;display:flex;gap:8px">
-        <a style="color:var(--accent2);cursor:pointer;font-size:11px" onclick="logout()">LOGOUT</a>
-        <a style="color:var(--accent);cursor:pointer;font-size:11px" onclick="showScreen('manual')">HOW TO PLAY</a>
-        <a href="/static/changelog.html" target="_blank" style="color:var(--text-dim);font-size:11px">CHANGELOG</a>
-      </div>
+    </div>
+
+    <div class="nav-links">
+      <a onclick="openReplays()">📼 Přehrát hru</a>
+      <a onclick="openLeaderboard()">🏆 Žebříček</a>
+      <a onclick="openBotAccounts()">🤖 Moji boti</a>
+      <a onclick="openAdmin()">⚙ Admin</a>
+      <a onclick="showManual()">❓ Jak hrát</a>
     </div>
   </div>
 </div>
-</div>
 
-<!-- MANUAL -->
-<div id="manual-screen" class="screen" style="overflow-y:auto;align-items:flex-start;justify-content:flex-start;padding:20px">
-<div style="max-width:700px;margin:0 auto;width:100%">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <h1 style="font-family:var(--font-head);color:var(--accent);font-size:20px;letter-spacing:3px">HOW TO PLAY</h1>
-    <button class="btn" onclick="showScreen('lobby')">BACK</button>
-  </div>
-
-  <div class="manual-section">
-    <h2>OBJECTIVE</h2>
-    <p>Capture the enemy <b style="color:var(--accent2)">citadel</b> with a ground unit. First player to do so wins.</p>
-  </div>
-
-  <div class="manual-section">
-    <h2>THE BOARD</h2>
-    <p>Diamond-shaped hexagonal grid with 153 hexes. Each player has:</p>
-    <div class="manual-board">
-      <div class="mb-row"><span class="mb-zone" style="background:#2a0a0a">CITADEL</span> Your base. Defend it!</div>
-      <div class="mb-row"><span class="mb-zone" style="background:#0a1a2a">LEVEL 0</span> Defensive zone. +0 attack bonus.</div>
-      <div class="mb-row"><span class="mb-zone" style="background:#0a2a1a">LEVEL 1</span> Mid zone. +1 attack bonus.</div>
-      <div class="mb-row"><span class="mb-zone" style="background:#2a2a0a">LEVEL 2</span> Forward zone. +2 attack bonus.</div>
-      <div class="mb-row"><span class="mb-zone" style="background:#121820">BATTLEFIELD</span> Neutral ground. Mountains block ground movement.</div>
-    </div>
-    <p style="margin-top:8px">Your territory is always at the <b>bottom</b>, enemy at the <b>top</b>.</p>
-  </div>
-
-  <div class="manual-section">
-    <h2>DEPLOYMENT PHASE</h2>
-    <p>Place all 23 units into your Level zones (not citadel, not battlefield).</p>
-    <ul>
-      <li>Click a unit in the side panel, then click a hex to place it</li>
-      <li>Or use <b style="color:var(--accent)">RANDOM DEPLOY</b> to auto-place everything</li>
-      <li>Higher levels give bigger attack bonus but have unit limits</li>
-      <li>Max 1 Assassin and 1 Terminator per level</li>
-      <li>Artillery can only go to Level 0</li>
-    </ul>
-  </div>
-
-  <div class="manual-section">
-    <h2>BATTLE PHASE</h2>
-    <p>Players alternate turns. Each turn: <b>one action</b> — Move, Attack, Special, or Pass.</p>
-    <ul>
-      <li><b style="color:var(--green)">Green hexes</b> — valid movement targets</li>
-      <li><b style="color:var(--accent2)">Red hexes</b> — attack targets</li>
-      <li><b style="color:var(--accent)">Blue hexes</b> — special ability targets</li>
-    </ul>
-  </div>
-
-  <div class="manual-section">
-    <h2>UNITS</h2>
-    <table class="manual-table">
-      <tr><th>Unit</th><th>ATK</th><th>MOV</th><th>Type</th><th>Special</th></tr>
-      <tr><td>Engineer</td><td>1</td><td>1</td><td>Ground</td><td>Conceals allies, defuses mines</td></tr>
-      <tr><td>Scout</td><td>2</td><td>2</td><td>Ground</td><td>Fast recon</td></tr>
-      <tr><td>Private</td><td>3</td><td>1</td><td>Ground</td><td>Basic infantry (x3)</td></tr>
-      <tr><td>Paratrooper</td><td>4</td><td>1</td><td>Ground</td><td>Airborne (x2)</td></tr>
-      <tr><td>Tank</td><td>5</td><td>1</td><td>Ground</td><td>Heavy armor (x2)</td></tr>
-      <tr><td>Terminator</td><td>6</td><td>1</td><td>Ground</td><td>Max 1 per level</td></tr>
-      <tr><td>Assassin</td><td>8</td><td>1</td><td>Ground</td><td>Kills all, but dies when attacked!</td></tr>
-      <tr><td>Helicopter</td><td>3</td><td>2</td><td>Air</td><td>Attacks ground safely, flies over mountains</td></tr>
-      <tr><td>Fighter</td><td>5</td><td>4</td><td>Air</td><td>Air-to-air only, ranged</td></tr>
-      <tr><td>Recon Drone</td><td>1</td><td>1</td><td>Special</td><td>Reveals hidden enemies</td></tr>
-      <tr><td>Attack Drone</td><td>4</td><td>1</td><td>Special</td><td>Ranged attack (ground + air)</td></tr>
-      <tr><td>Trainer</td><td>1</td><td>1</td><td>Special</td><td>Boosts ally attack +1</td></tr>
-      <tr><td>Corruptor</td><td>1</td><td>1</td><td>Special</td><td>Weakens enemy attack -1</td></tr>
-      <tr><td>Jammer</td><td>1</td><td>1</td><td>Special</td><td>Prevents reveals nearby</td></tr>
-      <tr><td>Mine</td><td>99</td><td>0</td><td>Special</td><td>Kills ground on contact (x2)</td></tr>
-      <tr><td>Artillery</td><td>6</td><td>0</td><td>Special</td><td>Ranged ground, Level 0 only</td></tr>
-    </table>
-    <p style="margin-top:8px">All ranged abilities: range = <b>2 + placement level</b></p>
-  </div>
-
-  <div class="manual-section">
-    <h2>COMBAT</h2>
-    <ul>
-      <li><b>Melee:</b> Higher attack wins. Equal = both die. Winner moves to target hex.</li>
-      <li><b>Ranged:</b> If attacker &ge; target: kill. If less: miss. Attacker always safe.</li>
-      <li><b>Helicopter vs Ground:</b> Helicopter attacks without risk. Can't kill stronger, but survives.</li>
-      <li><b>Assassin:</b> Attack 8 — devastating. But dies to ANY ground unit when defending!</li>
-      <li><b>Mine:</b> Ground unit walks on it = both destroyed. Engineer defuses safely.</li>
-    </ul>
-  </div>
-
-  <div class="manual-section">
-    <h2>FOG OF WAR</h2>
-    <ul>
-      <li>All units start <b>hidden</b> — enemy sees position but not type</li>
-      <li>Units revealed during combat (both sides)</li>
-      <li><b>Jammer</b> prevents reveals in its area</li>
-      <li><b>Recon Drone</b> reveals enemies at range</li>
-      <li><b>Engineer</b> can re-hide revealed allies</li>
-    </ul>
-  </div>
-
-  <div class="manual-section">
-    <h2>CONTROLS</h2>
-    <table class="manual-table">
-      <tr><th>Action</th><th>Desktop</th><th>Mobile</th></tr>
-      <tr><td>Select / Act</td><td>Left click</td><td>Tap</td></tr>
-      <tr><td>Pan map</td><td>Left drag</td><td>One finger drag</td></tr>
-      <tr><td>Zoom</td><td>Scroll wheel</td><td>Pinch</td></tr>
-      <tr><td>Cancel</td><td>Escape</td><td>CANCEL button</td></tr>
-      <tr><td>Reset view</td><td>Home key</td><td>—</td></tr>
-      <tr><td>Fullscreen</td><td>&#x26F6; button</td><td>&#x26F6; button</td></tr>
-    </table>
-  </div>
-
-  <div class="manual-section">
-    <h2>STRATEGY TIPS</h2>
-    <ul>
-      <li><b>Level 2</b> gives +2 attack but limits specials — plan your placement!</li>
-      <li><b>Scout with Recon</b> before attacking — know what you're fighting</li>
-      <li><b>Protect Assassin</b> — attack 10 at L2, but dies to anything on defense</li>
-      <li><b>Jammer + army</b> — enemy can't scout your hidden units</li>
-      <li><b>Mines near citadel</b> stop enemy rushes</li>
-      <li><b>Trainer boost</b> key units before battle — permanent +1 each time</li>
-      <li><b>Rush:</b> All combat units at L2, push fast before enemy sets up</li>
-      <li><b>Turtle:</b> Mines, artillery, jammer at L0, strong defenders near citadel</li>
-    </ul>
-  </div>
-
-  <div style="text-align:center;margin:20px 0">
-    <button class="btn primary" onclick="showScreen('lobby')" style="padding:12px 40px;font-size:14px">BACK TO LOBBY</button>
-  </div>
-</div>
-</div>
-
-<!-- GAME -->
+<!-- ========== GAME SCREEN (placement + battle) ========== -->
 <div id="game-screen" class="screen">
-<div id="game-container">
-  <div id="canvas-wrap">
-    <div id="top-bar">
-      <span class="turn" id="turn-info">TURN 1</span>
-      <span class="phase" id="phase-info">DEPLOYMENT</span>
-      <span id="player-info">P1</span>
-      <span style="flex:1"></span>
-      <button class="btn" onclick="toggleFullscreen()" id="btn-fs">&#x26F6;</button>
-      <button class="btn" onclick="saveCurrentGame()">SAVE</button>
-      <button class="btn" id="btn-panel" onclick="togglePanel()" style="display:none">PANEL</button>
-      <button class="btn" onclick="backToLobby()">ABORT</button>
+  <div id="top-bar">
+    <span id="phase-badge" class="phase">—</span>
+    <span id="turn-banner" class="turn-banner">—</span>
+    <span id="timer" class="timer"></span>
+    <span class="menu-btn" onclick="exitGame()">← Lobby</span>
+  </div>
+
+  <div id="countdown-badge"></div>
+
+  <div id="mobile-picker"></div>
+
+  <div id="game-body">
+    <div id="board-area">
+      <canvas id="board-canvas"></canvas>
     </div>
-    <canvas id="gameCanvas"></canvas>
-    <div id="action-bar">
-      <button class="btn" id="btn-random" onclick="randomPlacement()" style="display:none">RANDOM DEPLOY</button>
-      <button class="btn primary" id="btn-confirm" onclick="confirmPlacement()" style="display:none">CONFIRM DEPLOYMENT</button>
-      <button class="btn" id="btn-pass" onclick="passTurn()" style="display:none">SKIP TURN</button>
-      <button class="btn danger" id="btn-cancel" onclick="cancelSelection()" style="display:none">CANCEL [ESC]</button>
+
+    <div id="right-panel">
+      <div class="panel-half" id="info-panel-half">
+        <div class="panel-title">ℹ Info o jednotce</div>
+        <div class="panel-body" id="info-content">
+          <div class="hint">Najeď na jednotku pro detail</div>
+        </div>
+      </div>
+      <div class="panel-half" id="bottom-panel-half">
+        <!-- Contents swap by phase -->
+        <div id="placement-bottom" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden">
+          <div class="panel-title">🎖 Formace</div>
+          <div id="form-loader"></div>
+          <div class="panel-title">⬢ Jednotky k rozmístění</div>
+          <div class="panel-body" id="unit-picker"></div>
+        </div>
+        <div id="battle-bottom" style="display:none;flex:1;flex-direction:column;min-height:0">
+          <div class="panel-title">📜 Log</div>
+          <div class="panel-body" id="log-panel"></div>
+        </div>
+      </div>
     </div>
   </div>
-  <div id="side-panel">
-    <div id="info-panel"></div>
-    <div id="log-panel"></div>
+
+  <div id="action-bar">
+    <!-- Placement controls -->
+    <div id="placement-actions" style="display:flex;align-items:center;gap:6px;width:100%">
+      <button class="btn ghost" onclick="clearPlacement()">🗑 Vymazat</button>
+      <button class="btn ghost" onclick="randomPlace()">🎲 Náhodně</button>
+      <button class="btn ghost" onclick="savePresetDialog()">💾 Uložit jako formaci</button>
+      <div style="flex:1"></div>
+      <span id="hexes-filled" style="color:var(--text-dim);font-size:11px">— / 51</span>
+      <button class="btn primary" id="confirm-btn" onclick="confirmPlacement()">✓ Potvrdit rozestavení</button>
+    </div>
+
+    <!-- Battle controls -->
+    <div id="battle-actions" style="display:none;align-items:center;gap:6px;width:100%">
+      <span class="selected-unit" id="sel-unit-label">—</span>
+      <button class="btn primary" id="btn-move" onclick="setIntent('move')">🚶 Pohyb</button>
+      <button class="btn" id="btn-attack" onclick="setIntent('attack')">⚔ Útok</button>
+      <button class="btn" id="btn-special" onclick="setIntent('special')">✨ Speciál</button>
+      <button class="btn ghost" onclick="passTurn()">↷ Pas</button>
+      <button class="btn ghost" id="btn-speedup" onclick="requestSpeedup()" style="display:none">⏩ Zrychlit</button>
+    </div>
   </div>
-</div>
 </div>
 
-<!-- OVERLAY / DIALOG -->
+<!-- ========== FORMATIONS MANAGER ========== -->
+<div id="forms-screen" class="screen">
+  <div id="top-bar">
+    <span class="phase">TVORBA FORMACE</span>
+    <span class="turn-banner" id="forms-title">—</span>
+    <span class="menu-btn" onclick="closeFormations()">← Lobby</span>
+  </div>
+  <div id="game-body">
+    <div id="board-area"><canvas id="forms-canvas"></canvas></div>
+    <div id="right-panel">
+      <div class="panel-half">
+        <div class="panel-title">📛 Detaily formace</div>
+        <div class="panel-body" style="padding:14px">
+          <label style="font-size:11px;color:var(--text-dim)">Slot</label>
+          <select id="forms-slot" style="width:100%;padding:6px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);margin-bottom:8px">
+            <option value="1">1</option><option value="2">2</option>
+            <option value="3">3</option><option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+          <label style="font-size:11px;color:var(--text-dim)">Název (max 12 znaků)</label>
+          <input id="forms-name" type="text" maxlength="12" placeholder="Např. Blitz" style="margin-top:2px">
+          <div style="margin-top:12px;display:flex;gap:6px">
+            <button class="btn primary" onclick="saveCurrentFormation()">💾 Uložit</button>
+            <button class="btn danger" onclick="deleteCurrentFormation()">🗑 Smazat</button>
+          </div>
+          <div id="forms-status" class="ok-msg"></div>
+        </div>
+      </div>
+      <div class="panel-half">
+        <div class="panel-title">⬢ Jednotky</div>
+        <div class="panel-body" id="forms-picker"></div>
+      </div>
+    </div>
+  </div>
+  <div id="action-bar">
+    <span style="flex:1;color:var(--text-dim);font-size:11px">Klikni na hex ⇒ vyber jednotku ⇒ umístí se. Pak ulož.</span>
+    <span id="forms-filled" style="color:var(--text-dim);font-size:11px">— / 51</span>
+  </div>
+</div>
+
+<!-- ========== REPLAY VIEWER ========== -->
+<div id="replay-screen" class="screen">
+  <div id="top-bar">
+    <span class="phase">PŘEHRÁVÁNÍ</span>
+    <span class="turn-banner" id="replay-title">—</span>
+    <span id="replay-info" class="timer"></span>
+    <span class="menu-btn" onclick="closeReplay()">← Lobby</span>
+  </div>
+  <div id="game-body">
+    <div id="board-area"><canvas id="replay-canvas"></canvas></div>
+    <div id="right-panel">
+      <div class="panel-half">
+        <div class="panel-title">📋 Události</div>
+        <div class="panel-body" id="replay-events"></div>
+      </div>
+      <div class="panel-half">
+        <div class="panel-title">📜 Seznam her</div>
+        <div class="panel-body" id="replay-list"></div>
+      </div>
+    </div>
+  </div>
+  <div id="replay-controls">
+    <button class="btn ghost" onclick="replaySeek(-1)">⏮ Zpět</button>
+    <button class="btn primary" onclick="replayPlay()" id="replay-play-btn">▶</button>
+    <button class="btn ghost" onclick="replaySeek(1)">Vpřed ⏭</button>
+    <input id="replay-seek" type="range" min="0" max="0" value="0" oninput="replayScrub(this.value)">
+    <select id="replay-speed" onchange="replaySpeed=parseFloat(this.value)">
+      <option value="1">1×</option><option value="2">2×</option><option value="4">4×</option>
+    </select>
+  </div>
+</div>
+
+<!-- ========== ADMIN ========== -->
+<div id="admin-screen" class="screen">
+  <div class="admin-wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h1>ADMIN</h1>
+      <div>
+        <button class="btn ghost" onclick="adminChangePasswordDialog()">Změnit heslo</button>
+        <button class="btn ghost" onclick="exitAdmin()">← Lobby</button>
+      </div>
+    </div>
+    <div id="admin-login" class="lobby-card" style="max-width:360px;margin:40px auto">
+      <h2>Přihlášení admina</h2>
+      <input id="admin-pass" type="password" placeholder="Admin heslo">
+      <button class="btn primary" style="width:100%;margin-top:8px" onclick="adminLogin()">Přihlásit</button>
+      <div id="admin-err" class="err"></div>
+    </div>
+    <div id="admin-panel" style="display:none">
+      <div class="lobby-card">
+        <h2>Úprava základních statistik jednotek</h2>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px">
+          Žlutě zvýrazněné buňky mají override. Prázdné pole znamená "default". Změny se projeví v nově vytvářených hrách.
+        </p>
+        <table class="admin-table">
+          <thead><tr>
+            <th>Typ</th><th>CZ jméno</th><th>Kategorie</th>
+            <th>Síla</th><th>Pohyb</th><th>Dosah</th><th>Max v armádě</th><th></th>
+          </tr></thead>
+          <tbody id="admin-units-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== BOT ACCOUNTS ========== -->
+<div id="bots-screen" class="screen">
+  <div class="admin-wrap" style="max-width:720px;padding:16px;margin:0 auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h1>MOJI BOTI</h1>
+      <button class="btn ghost" onclick="exitBots()">← Lobby</button>
+    </div>
+    <div class="lobby-card">
+      <h2>Vytvořit nového bota</h2>
+      <div style="display:flex;gap:8px">
+        <input id="new-bot-name" type="text" placeholder="Jméno bota (max 32)" style="flex:1" maxlength="32">
+        <button class="btn primary" onclick="createBot()">Vytvořit</button>
+      </div>
+      <div id="new-bot-err" class="err"></div>
+    </div>
+    <div class="lobby-card" style="margin-top:12px">
+      <h2>Moji boti</h2>
+      <div id="bots-list"></div>
+    </div>
+    <div class="lobby-card" style="margin-top:12px">
+      <h2>Žebříček botů</h2>
+      <div id="bot-lb"></div>
+    </div>
+    <div class="lobby-card" style="margin-top:12px">
+      <h2>API dokumentace</h2>
+      <p style="color:var(--text-dim);font-size:12px">Úplný popis endpointů a Python příklad najdeš v <a href="/static/API.md" target="_blank" style="color:var(--accent)">API.md</a>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MANUAL ========== -->
+<div id="manual-screen" class="screen">
+  <div class="admin-wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h1>JAK HRÁT</h1>
+      <button class="btn ghost" onclick="exitManual()">← Lobby</button>
+    </div>
+    <div class="lobby-card">
+      <h2>Cíl hry</h2>
+      <p style="font-size:13px;line-height:1.6">
+        Cílem je dobýt citadelu soupeře pozemní (nebo speciální) jednotkou. Hraje se na dvě fáze:
+        <b>rozestavení</b> (každý hráč umístí jednotky do úrovní L0–L2) a <b>boj</b> (střídáte se po tazích).
+      </p>
+    </div>
+    <div class="lobby-card">
+      <h2>Fáze 1 – Rozestavení</h2>
+      <p style="font-size:13px;line-height:1.6">
+        Každý hráč má 51 polí v úrovních. Vyber jednotku v panelu vpravo (na mobilu v liště nad plánem) a klepni na pole.
+        Všechny hexy musí být obsazeny nebo potvrdíš "násilně" (prázdná pole zůstanou).
+        Speciálních jednotek: max 2+L na úroveň. Max 1 Terminátor na úroveň, Dělostřelecká baterie jen na L0.
+        Jednotky získají úroveň jako trvalý bonus síly (scout 2+L, private 3+L atd.).
+      </p>
+    </div>
+    <div class="lobby-card">
+      <h2>Fáze 2 – Boj</h2>
+      <p style="font-size:13px;line-height:1.6">
+        Za kolo každý hráč odehraje jeden tah: pohyb, standardní útok, nebo speciální akci.
+        Začíná ten, kdo první potvrdil rozestavení. Pokud někdo nehraje déle než 2 minuty, soupeř může kliknout na "Zrychlit" – spustí se 60s odpočet a pak se tah promarní.
+      </p>
+    </div>
+    <div class="lobby-card">
+      <h2>Jednotky (v1.0)</h2>
+      <table class="admin-table">
+        <thead><tr><th>Zkratka</th><th>Jméno</th><th>Síla</th><th>Pohyb</th><th>Zvláštnost</th></tr></thead>
+        <tbody id="manual-units-body"></tbody>
+      </table>
+    </div>
+    <div class="lobby-card">
+      <h2>Klíčová pravidla</h2>
+      <ul style="font-size:13px;line-height:1.8;padding-left:18px">
+        <li><b>Hacker</b> zabije Terminátora v boji na blízko (Terminátora nelze zabít jinak).</li>
+        <li><b>Minové pole</b> zničí jakoukoli pozemní jednotku, která na něj zaútočí (mina zůstává a odhalí se). Jen <b>Ženista</b> dokáže minu zničit.</li>
+        <li><b>Vrtulník</b> útočí na pozemní/letecké/speciální. Při útoku na minu se oba odhalí a zůstanou.</li>
+        <li><b>Stíhač</b> útočí jen na letecké jednotky. Útok na pozemní = promarněný tah.</li>
+        <li><b>Trenér</b>: +1 síly max 2× na jednotku. Může přeměnit vlastní pozemní jednotku se silou &gt;3 na Hackera (max 2× za hru).</li>
+        <li><b>Koruptor</b>: -1 síly/dosahu (minimum 1). Neodhalí sebe ani cíl. Červený obvod ukazuje zasažení.</li>
+        <li><b>Útočný dron</b>: okamžitě zničí jednotku se silou &lt;4. Jinak dron odhalen + cíl dočasně odhalen.</li>
+        <li><b>Dělostřelecká baterie</b>: speciální akce, dosah 2, zničí libovolnou pozemní/speciální jednotku.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ========== OVERLAY (dialogs) ========== -->
 <div id="overlay">
-  <div style="background:var(--panel);border:1px solid var(--border);padding:30px 40px;max-width:400px;width:90%;text-align:center;position:relative">
-    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent)"></div>
-    <div class="title" id="overlay-title" style="font-family:var(--font-head);font-size:18px;color:var(--accent);letter-spacing:2px;margin-bottom:8px"></div>
-    <div class="subtitle" id="overlay-sub" style="color:var(--text-dim);font-size:13px;margin-bottom:16px"></div>
-    <div id="overlay-input-wrap" style="display:none;margin-bottom:16px">
-      <input id="overlay-input" type="text" style="width:100%;padding:8px;background:#0a0e1a;border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:13px">
-    </div>
-    <div style="display:flex;gap:10px;justify-content:center">
-      <button class="btn primary" id="overlay-btn-ok" style="padding:10px 30px;font-size:14px;cursor:pointer">OK</button>
-      <button class="btn" id="overlay-btn-cancel" style="padding:10px 30px;font-size:14px;cursor:pointer;display:none">CANCEL</button>
-    </div>
-  </div>
+  <div class="dialog" id="overlay-dialog"></div>
 </div>
 
-</div>
+<!-- ========== TOAST ========== -->
+<div id="toast"></div>
 
 <script>
 // ============================================================
-// SPRITE SYSTEM – easily replaceable assets
-// ============================================================
-const SPRITES = {};
-const SPRITE_TYPES = [
-    'engineer','scout','private','paratrooper','tank','terminator','assassin',
-    'helicopter','fighter','recon_drone','attack_drone','trainer','corruptor',
-    'jammer','mine','artillery','unknown'
-];
-
-function loadSprites(){
-    for(const t of SPRITE_TYPES){
-        const img = new Image();
-        img.src = `/static/img/units/${t}.png`;
-        img.onload = () => { SPRITES[t] = img; };
-        // If not found, SPRITES[t] stays undefined → fallback to canvas drawing
-    }
-}
-loadSprites();
-
-// ============================================================
 // STATE
 // ============================================================
-let TOKEN = localStorage.getItem('ms_token') || '';
-let USERNAME = localStorage.getItem('ms_user') || '';
-let GAME_ID = null, MY_PLAYER = 1, STATE = null, MODE = 'ai';
-let selectedUnit = null, highlightHexes = [], hoverHex = null;
+const TOKEN_KEY = 'ms_token';
+const ADMIN_TOKEN_KEY = 'ms_admin_token';
+let token = localStorage.getItem(TOKEN_KEY) || '';
+let adminToken = localStorage.getItem(ADMIN_TOKEN_KEY) || '';
+let me = null;
+let currentGameId = null;
+let gameState = null;   // last /state response
+let myPlayer = 1;       // 1 or 2
+let selectedUnitId = null;   // persisted across refreshes
+let pickerType = null;       // utype when placing
+let intent = 'move';         // 'move'|'attack'|'special' in battle
+let hoverUnitId = null;      // for info panel (transient)
+let lastMoveMarker = null;   // {fromC, fromR, toC, toR, ts} – drawn briefly
+let dragPanOffset = {x:0, y:0};
+let scale = 1;
 
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const HEX_SIZE = 28, SQRT3 = Math.sqrt(3);
-let camX = 0, camY = 0, zoom = 1.0;
-let isDragging = false, dragStartX = 0, dragStartY = 0, dragCamX = 0, dragCamY = 0;
-let isRegister = false;
+// Unit defs mirrored from backend (must match UNIT_DEFS exactly).
+// Kept here so the picker works before any /state roundtrip.
+const UNIT_DEFS_CLIENT = {
+  engineer:    {name:"Ženista",       abbr:"Že", max:8, cat:"ground",  atk:1,      mv:1, desc:"Zahalí spřátelenou odhalenou jednotku (adjacent). Zničí minové pole útokem – sám přežije."},
+  scout:       {name:"Průzkumník",    abbr:"Pr", max:6, cat:"ground",  atk:"2+L",  mv:3, desc:"Rychlá pozemní jednotka. Síla 2 + úroveň. Pohyb až 3."},
+  private:     {name:"Vojín",         abbr:"Vo", max:10, cat:"ground", atk:"3+L",  mv:1, desc:"Základní pěchota. Síla 3 + úroveň."},
+  paratrooper: {name:"Výsadkář",      abbr:"Vý", max:5, cat:"ground",  atk:"4+L",  mv:2, desc:"Silný nájezdník. Síla 4 + úroveň. Pohyb až 2."},
+  tank:        {name:"Tank",          abbr:"Ta", max:4, cat:"ground",  atk:"5+L",  mv:2, desc:"Silná průlomová jednotka. Síla 5 + úroveň. Pohyb až 2."},
+  terminator:  {name:"Terminátor",    abbr:"Te", max:1, cat:"ground",  atk:"8+L",  mv:1, desc:"Nejsilnější pozemka. Síla 8 + úroveň. POZOR: Hacker ho zabije v boji na blízko!"},
+  hacker:      {name:"Hacker",        abbr:"Ha", max:1, cat:"ground",  atk:1,      mv:1, desc:"Při útoku na Terminátora automaticky vítězí (bez ztráty)."},
+  helicopter:  {name:"Vrtulník",      abbr:"Vr", max:4, cat:"air",     atk:"3+L",  mv:1, desc:"Útočí na pozemní, letecké a speciální jednotky. Mina ho neumře - jen odhalí."},
+  fighter:     {name:"Stíhač",        abbr:"St", max:4, cat:"air",     atk:"4+L",  mv:2, desc:"Útočí jen na letecké jednotky. Smí procházet přes spřátelené jednotky."},
+  mine_field:  {name:"Minové pole",   abbr:"Mi", max:8, cat:"special", atk:0,      mv:0, desc:"Neútočí. Zničí pozemní útočníka (sama přežije). Zničí ji jen Ženista."},
+  recon_drone: {name:"Prů. dron",     abbr:"PD", max:4, cat:"special", atk:1,      mv:1, desc:"Speciál: odhalí nepřítele v dosahu (1+L)."},
+  attack_drone:{name:"Út. dron",      abbr:"UD", max:4, cat:"special", atk:1,      mv:1, desc:"Speciál: zničí jednotku se silou <4 (dosah 1+L). Při selhání se dron odhalí a cíl dočasně odhalen."},
+  trainer:     {name:"Trenér",        abbr:"Tr", max:2, cat:"special", atk:1,      mv:1, desc:"Speciál: +1 síla spřátelené jednotky (max 2× na cíl). Nebo přeměna ATK>3 na Hackera (2×/hra)."},
+  corruptor:   {name:"Koruptor",      abbr:"Ko", max:2, cat:"special", atk:1,      mv:1, desc:"Speciál: -1 síla/dosah nepřítele (min 1). Dosah 1+L. Neodhalí sebe ani cíl."},
+  jammer:      {name:"Rušička",       abbr:"Ru", max:2, cat:"special", atk:1,      mv:1, desc:"Pasivně chrání spřátelené jednotky v okolí (1+L) před odhalením dronem."},
+  artillery:   {name:"Děl. baterie",  abbr:"DB", max:2, cat:"special", atk:0,      mv:0, desc:"Jen L0. Speciál: ničí pozemní/speciální v dosahu 2."},
+};
+const UNIT_ORDER = ['engineer','scout','private','paratrooper','tank','terminator','hacker',
+                    'helicopter','fighter','mine_field',
+                    'recon_drone','attack_drone','trainer','corruptor','jammer','artillery'];
 
-// Animation & last-move tracking
-let anims = [];          // [{id, fromCol, fromRow, toCol, toRow, progress}]
-let animStart = 0;
-const ANIM_MS = 350;
-let lastMove = {1: null, 2: null};  // per player: {id, fromCol, fromRow, toCol, toRow}
-let prevPositions = {};  // unitId -> {col, row} snapshot before state update
+// ============================================================
+// API HELPERS
+// ============================================================
+async function api(method, path, body){
+  const opts = {method, headers:{'Content-Type':'application/json'}};
+  if(token) opts.headers['Authorization'] = 'Bearer '+token;
+  if(body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  const txt = await r.text();
+  let data; try{ data = JSON.parse(txt); }catch{ data = {error: txt}; }
+  if(r.status===401){ logout(); throw new Error('unauthorized'); }
+  return data;
+}
+async function adminApi(method, path, body){
+  const opts = {method, headers:{'Content-Type':'application/json'}};
+  if(adminToken) opts.headers['Authorization'] = 'Bearer '+adminToken;
+  if(body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  const txt = await r.text();
+  let data; try{ data = JSON.parse(txt); }catch{ data = {error: txt}; }
+  return data;
+}
+
+// ============================================================
+// SCREEN NAVIGATION
+// ============================================================
+function show(screenId){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(screenId).classList.add('active');
+}
+function showAuthTab(t){
+  document.getElementById('tab-login').classList.toggle('active', t==='login');
+  document.getElementById('tab-reg').classList.toggle('active', t==='reg');
+}
 
 // ============================================================
 // AUTH
 // ============================================================
-function toggleAuth(){
-    isRegister = !isRegister;
-    document.getElementById('auth-btn-text').textContent = isRegister ? 'REGISTER' : 'LOGIN';
-    document.getElementById('auth-toggle-text').textContent = isRegister ? 'Have access? Login' : 'New recruit? Register';
-}
-
 async function doAuth(){
-    const user = document.getElementById('auth-user').value.trim();
-    const pass = document.getElementById('auth-pass').value;
-    const url = isRegister ? '/api/auth/register' : '/api/auth/login';
-    try {
-        const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({username:user, password:pass})});
-        const d = await r.json();
-        if(d.ok){
-            TOKEN = d.token; USERNAME = d.username;
-            localStorage.setItem('ms_token', TOKEN); localStorage.setItem('ms_user', USERNAME);
-            showScreen('lobby');
-        } else {
-            document.getElementById('auth-error').textContent = d.error || 'ACCESS DENIED';
-        }
-    } catch(e){ document.getElementById('auth-error').textContent = 'COMMS FAILURE'; }
+  const u = document.getElementById('auth-user').value.trim();
+  const p = document.getElementById('auth-pass').value;
+  const err = document.getElementById('auth-err');
+  err.textContent = '';
+  const isReg = document.getElementById('tab-reg').classList.contains('active');
+  const path = isReg ? '/api/auth/register' : '/api/auth/login';
+  const r = await api('POST', path, {username:u, password:p});
+  if(!r.ok){ err.textContent = 'Chyba: '+(r.error||'neznámá'); return; }
+  token = r.token;
+  localStorage.setItem(TOKEN_KEY, token);
+  await loadMe();
+  show('lobby-screen');
+  loadLobby();
 }
-
-function logout(){ TOKEN=''; USERNAME=''; localStorage.removeItem('ms_token'); localStorage.removeItem('ms_user'); showScreen('auth'); }
-
-// ============================================================
-// SCREENS
-// ============================================================
-function showScreen(name){
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(name+'-screen').classList.add('active');
-    if(name === 'lobby'){ refreshLobby(); }
-    if(name === 'game'){ resizeCanvas(); }
+async function loadMe(){
+  const r = await api('GET', '/api/auth/me');
+  if(r.ok) me = r;
 }
-
-async function backToLobby(){
-    if(STATE && STATE.phase !== 'finished'){
-        const ok = await customConfirm('ABANDON MISSION?', 'Current game will not be lost – autosave is active.');
-        if(!ok) return;
-    }
-    GAME_ID=null; STATE=null; selectedUnit=null; showScreen('lobby');
+function logout(){
+  localStorage.removeItem(TOKEN_KEY);
+  token = ''; me = null;
+  show('auth-screen');
 }
-
-async function refreshLobby(){
-    document.getElementById('lobby-user').textContent = USERNAME;
-    const me = await apiFetch('/api/auth/me', null, 'GET');
-    if(me.ok && me.stats) document.getElementById('lobby-elo').textContent = me.stats.elo || 1000;
-    if(me.ok && me.email) document.getElementById('user-email').value = me.email;
-    refreshGames();
-    refreshLeaderboard();
-    refreshSaves();
-}
-
-async function saveEmail(){
-    const email = document.getElementById('user-email').value.trim();
-    const r = await apiFetch('/api/auth/email', {email});
-    const msg = document.getElementById('email-msg');
-    msg.textContent = r.ok ? 'Email saved' : (r.error||'Error');
-    msg.style.color = r.ok ? 'var(--green)' : 'var(--accent2)';
-}
-
-async function changePassword(){
-    const old_p = document.getElementById('old-pass').value;
-    const new_p = document.getElementById('new-pass').value;
-    const r = await apiFetch('/api/auth/change_password', {old_password:old_p, new_password:new_p});
-    const msg = document.getElementById('pass-msg');
-    msg.textContent = r.ok ? 'Password changed!' : (r.error || 'Error');
-    msg.style.color = r.ok ? 'var(--green)' : 'var(--accent2)';
-    if(r.ok){ document.getElementById('old-pass').value=''; document.getElementById('new-pass').value=''; }
-}
-
-async function refreshSaves(){
-    const r = await apiFetch('/api/saves', null, 'GET');
-    const el = document.getElementById('saves-list');
-    if(!r.ok || !r.saves.length){ el.innerHTML='<div style="color:var(--text-dim);font-size:11px">No saved games</div>'; return; }
-    el.innerHTML = r.saves.map(s => `
-        <div class="game-item"><span>${s.name} ${s.is_autosave?'[auto]':''}</span>
-        <div><button class="btn" onclick="loadSave(${s.id})">LOAD</button>
-        <button class="btn danger" onclick="deleteSave(${s.id})">DEL</button></div></div>
-    `).join('');
-}
-
-async function deleteSave(saveId){
-    const ok = await customConfirm('DELETE SAVE?', 'This cannot be undone.');
-    if(!ok) return;
-    const r = await apiFetch(`/api/saves/${saveId}`, null, 'DELETE');
-    if(r.ok) refreshSaves();
-    else showToast(r.error||'Error');
-}
-
-async function loadSave(saveId){
-    const r = await apiFetch(`/api/saves/${saveId}/load`, {});
-    if(r.ok){ GAME_ID=r.game_id; MY_PLAYER=1; MODE='ai'; showScreen('game'); await fetchState(); }
-    else showToast(r.error||'Error');
-}
-
-async function saveCurrentGame(){
-    if(!GAME_ID) return;
-    const name = await customPrompt('SAVE GAME', `Save T${STATE?.turn||0}`, 'Enter a name for this save:');
-    if(!name) return;
-    const r = await apiFetch(`/api/game/${GAME_ID}/save`, {name});
-    if(r.ok) showToast('Game saved');
-    else showToast(r.error||'Error');
+async function autoLogin(){
+  if(!token){ show('auth-screen'); return; }
+  try{ await loadMe(); }catch{ show('auth-screen'); return; }
+  if(me){
+    show('lobby-screen');
+    loadLobby();
+  }else{
+    show('auth-screen');
+  }
 }
 
 // ============================================================
 // LOBBY
 // ============================================================
+async function loadLobby(){
+  if(me){
+    document.getElementById('lobby-username').textContent = me.username;
+    document.getElementById('lobby-elo').textContent = me.stats ? me.stats.elo : '?';
+  }
+  // Open games
+  const g = await api('GET','/api/game/list');
+  const el = document.getElementById('open-games-list');
+  el.innerHTML = '';
+  if(g.ok && g.games.length){
+    g.games.forEach(x=>{
+      const row = document.createElement('div');
+      row.className = 'list-row';
+      row.innerHTML = `<span>${x.game_id.slice(0,8)} <span class="meta">${x.mode} / ${x.phase}</span></span>`;
+      if(x.joinable){
+        const b = document.createElement('button');
+        b.className = 'btn'; b.textContent = 'Připojit';
+        b.onclick = ()=>joinGame(x.game_id);
+        row.appendChild(b);
+      }
+      el.appendChild(row);
+    });
+  }else{
+    el.innerHTML = '<div class="list-row meta">žádné otevřené hry</div>';
+  }
+  // Presets
+  const p = await api('GET','/api/presets');
+  const pel = document.getElementById('presets-list');
+  pel.innerHTML = '';
+  if(p.ok && p.presets.length){
+    p.presets.forEach(x=>{
+      const row = document.createElement('div');
+      row.className = 'list-row';
+      row.innerHTML = `<span>Slot ${x.slot}: <b>${x.name}</b> <span class="meta">${x.units.length} jednotek</span></span>`;
+      pel.appendChild(row);
+    });
+  }else{
+    pel.innerHTML = '<div class="list-row meta">žádné formace</div>';
+  }
+}
+
 async function newGame(mode){
-    MODE = mode;
-    const r = await apiFetch('/api/game/new', {mode});
-    if(r.ok){ GAME_ID = r.game_id; MY_PLAYER = r.player; showScreen('game'); await fetchState(); }
+  const r = await api('POST','/api/game/new',{mode});
+  if(!r.ok){ toast('Chyba: '+r.error); return; }
+  enterGame(r.game_id, r.player);
 }
-
 async function joinGame(gid){
-    const r = await apiFetch('/api/game/join', {game_id: gid});
-    if(r.ok){ GAME_ID = r.game_id; MY_PLAYER = r.player; MODE = 'online'; showScreen('game'); await fetchState(); }
+  const r = await api('POST','/api/game/join',{game_id:gid});
+  if(!r.ok){ toast('Chyba: '+r.error); return; }
+  enterGame(r.game_id, r.player);
 }
-
-async function refreshGames(){
-    const r = await apiFetch('/api/game/list', null, 'GET');
-    const el = document.getElementById('game-list');
-    if(!r.ok || !r.games.length){ el.innerHTML='<div style="color:var(--text-dim);font-size:11px">No active ops</div>'; return; }
-    el.innerHTML = r.games.filter(g=>g.joinable).map(g => `
-        <div class="game-item"><span>${g.game_id} [${g.mode}]</span>
-        <button class="btn" onclick="joinGame('${g.game_id}')">JOIN</button></div>
-    `).join('') || '<div style="color:var(--text-dim);font-size:11px">No joinable games</div>';
-}
-
-async function refreshLeaderboard(){
-    const r = await apiFetch('/api/leaderboard', null, 'GET');
-    const el = document.getElementById('leaderboard');
-    if(!r.ok || !r.leaderboard.length){ el.innerHTML='<div style="color:var(--text-dim);font-size:11px">No rankings yet</div>'; return; }
-    let html = '<table class="lb-table"><tr><th>#</th><th>OPERATIVE</th><th>ELO</th><th>W/L</th></tr>';
-    r.leaderboard.forEach((p,i) => {
-        html += `<tr><td class="rank">${i+1}</td><td>${p.username}</td><td class="elo-val">${p.elo}</td><td>${p.wins}/${p.losses}</td></tr>`;
-    });
-    el.innerHTML = html + '</table>';
+function exitGame(){
+  currentGameId = null; gameState = null;
+  stopPolling();
+  show('lobby-screen');
+  loadLobby();
 }
 
 // ============================================================
-// API
+// GAME ENGINE (client side)
 // ============================================================
-async function apiFetch(url, body, method='POST'){
-    const opts = {method, headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN}};
-    if(body && method==='POST') opts.body = JSON.stringify(body);
-    try { const r = await fetch(url, opts); return await r.json(); }
-    catch(e){ return {ok:false, error:'network'}; }
+let pollTimer = null;
+function startPolling(){
+  stopPolling();
+  refreshState();
+  pollTimer = setInterval(refreshState, 2000);
+}
+function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+
+async function enterGame(gid, player){
+  currentGameId = gid;
+  myPlayer = player;
+  show('game-screen');
+  resizeCanvas();
+  startPolling();
 }
 
-function snapshotPositions(){
-    prevPositions = {};
-    if(!STATE) return;
-    for(const u of [...(STATE.my_units||[]),...(STATE.enemy_units||[])]){
-        if(u.placed) prevPositions[u.id] = {col:u.col, row:u.row};
+async function refreshState(){
+  if(!currentGameId) return;
+  const r = await api('GET', `/api/game/${currentGameId}/state`);
+  if(!r.ok){ toast('Chyba stavu: '+r.error); return; }
+  const prev = gameState;
+  gameState = r;
+  myPlayer = r.my_player;
+  // Detect last move by comparing positions of units that exist in both snapshots
+  if(prev){
+    const prevById = {};
+    [...(prev.my_units||[]), ...(prev.enemy_units||[])].forEach(u=>{prevById[u.id] = u;});
+    const allNow = [...(r.my_units||[]), ...(r.enemy_units||[])];
+    for(const u of allNow){
+      const p = prevById[u.id];
+      if(!p || !u.alive || !u.placed) continue;
+      if(p.col !== u.col || p.row !== u.row){
+        lastMoveMarker = {fromC:p.col, fromR:p.row, toC:u.col, toR:u.row, ts:Date.now()};
+        break;
+      }
     }
+  }
+  updateUI();
+  draw();
 }
 
-let animPhase = 0; // 0=idle, 1=player anim, 2=pause, 3=enemy anim
-
-function detectAnimations(){
-    if(!STATE) return;
-    const newAnims = [];
-    for(const u of [...(STATE.my_units||[]),...(STATE.enemy_units||[])]){
-        if(!u.placed) continue;
-        const prev = prevPositions[u.id];
-        if(prev && (prev.col !== u.col || prev.row !== u.row)){
-            const isEnemy = u.owner !== MY_PLAYER;
-            newAnims.push({id:u.id, fromCol:prev.col, fromRow:prev.row,
-                           toCol:u.col, toRow:u.row, progress:0,
-                           owner:u.owner, phase: isEnemy ? 3 : 1});
-            lastMove[u.owner] = {id:u.id, fromCol:prev.col, fromRow:prev.row,
-                                 toCol:u.col, toRow:u.row};
-        }
-    }
-    // Detect killed units
-    const aliveIds = new Set([...(STATE.my_units||[]),...(STATE.enemy_units||[])].map(u=>u.id));
-    for(const [id, pos] of Object.entries(prevPositions)){
-        if(!aliveIds.has(id)){
-            // Guess owner from id prefix
-            const owner = id.startsWith('1_') ? 1 : 2;
-            const isEnemy = owner !== MY_PLAYER;
-            newAnims.push({id, fromCol:pos.col, fromRow:pos.row,
-                           toCol:pos.col, toRow:pos.row, progress:0,
-                           type:'death', phase: isEnemy ? 3 : 1});
-        }
-    }
-    if(!newAnims.length) return;
-
-    anims = newAnims;
-    const hasPlayerAnims = anims.some(a => a.phase === 1);
-    const hasEnemyAnims = anims.some(a => a.phase === 3);
-
-    if(hasPlayerAnims){
-        // Phase 1: player's move first
-        animPhase = 1;
-        animStart = performance.now();
-        requestAnimationFrame(animLoop);
-    } else if(hasEnemyAnims){
-        // Only enemy anims - pan first, then animate
-        const em = anims.find(a => a.phase === 3 && a.type !== 'death');
-        if(em){
-            panToHex(em.fromCol, em.fromRow, 600, () => {
-                animPhase = 3;
-                animStart = performance.now();
-                requestAnimationFrame(animLoop);
-            });
-        } else {
-            animPhase = 3;
-            animStart = performance.now();
-            requestAnimationFrame(animLoop);
-        }
-    }
-}
-
-function animLoop(now){
-    const t = Math.min(1, (now - animStart) / ANIM_MS);
-    const ease = t < 0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
-
-    for(const a of anims){
-        if(a.phase === animPhase) a.progress = ease;
-    }
-    render();
-
-    if(t < 1){
-        requestAnimationFrame(animLoop);
-        return;
-    }
-
-    if(animPhase === 1){
-        const hasEnemy = anims.some(a => a.phase === 3);
-        if(hasEnemy){
-            // Pause 500ms → pan to enemy unit → then animate enemy
-            animPhase = 2;
-            setTimeout(() => {
-                const em = anims.find(a => a.phase === 3 && a.type !== 'death');
-                if(em){
-                    panToHex(em.fromCol, em.fromRow, 600, () => {
-                        animPhase = 3;
-                        animStart = performance.now();
-                        requestAnimationFrame(animLoop);
-                    });
-                } else {
-                    animPhase = 3;
-                    animStart = performance.now();
-                    requestAnimationFrame(animLoop);
-                }
-            }, 500);
-        } else {
-            anims = []; animPhase = 0; render();
-        }
-    } else {
-        anims = []; animPhase = 0; render();
-    }
-}
-
-// Smooth camera pan to a hex, calls onDone when finished
-function panToHex(col, row, duration=500, onDone=null){
-    const target = hexToPixelRaw(col, row);
-    const targetCamX = canvas.width/2 - target.x*zoom;
-    const targetCamY = canvas.height/2 - target.y*zoom;
-    const startCamX = camX, startCamY = camY;
-    const start = performance.now();
-    function panStep(now){
-        const t = Math.min(1, (now - start) / duration);
-        const ease = t < 0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
-        camX = startCamX + (targetCamX - startCamX) * ease;
-        camY = startCamY + (targetCamY - startCamY) * ease;
-        render();
-        if(t < 1) requestAnimationFrame(panStep);
-        else if(onDone) onDone();
-    }
-    requestAnimationFrame(panStep);
-}
-
-// Fullscreen toggle
-function toggleFullscreen(){
-    if(!document.fullscreenElement){
-        (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen || function(){}).call(document.documentElement);
-    } else {
-        (document.exitFullscreen || document.webkitExitFullscreen || function(){}).call(document);
-    }
-}
-function onFullscreenChange(){
-    userZoomed = false;
-    for(const delay of [50, 150, 300, 500]){
-        setTimeout(resizeCanvas, delay);
-    }
-}
-document.addEventListener('fullscreenchange', onFullscreenChange);
-document.addEventListener('webkitfullscreenchange', onFullscreenChange);
-
-function autoFitZoom(){
-    const oldZoom = zoom;
-    zoom = 1; // reset to calculate raw board size
-    const p1=hexToPixelRaw(0,0), p2=hexToPixelRaw(16,16);
-    const bw=Math.abs(p2.x-p1.x)+HEX_SIZE*4;
-    const bh=Math.abs(p2.y-p1.y)+HEX_SIZE*4;
-    const zx = canvas.width * 0.9 / bw;
-    const zy = canvas.height * 0.9 / bh;
-    zoom = Math.min(zx, zy);
-    zoom = Math.max(0.5, Math.min(5.0, zoom));
-    centerCamera();
-    render();
-}
-
-async function fetchState(){
-    if(!GAME_ID) return;
-    snapshotPositions();
-    let url = `/api/game/${GAME_ID}/state`;
-    if(MODE === 'hotseat') url += `/${MY_PLAYER}`;
-    const r = await apiFetch(url, null, 'GET');
-    if(r.ok){
-        STATE = r;
-        detectAnimations();
-        updateUI();
-        render();
-    }
-}
-
-// ============================================================
-// GAME ACTIONS
-// ============================================================
-async function randomPlacement(){
-    // Place all unplaced units randomly
-    let r;
-    if(MODE === 'hotseat') r = await apiFetch(`/api/game/${GAME_ID}/hotseat`, {player:MY_PLAYER, action:'random_place'});
-    else r = await apiFetch(`/api/game/${GAME_ID}/random_place`);
-    if(!r.ok){ showToast(r.error||'Error'); return; }
-    await fetchState();
-    showToast(`${r.placed} units deployed`);
-    // Auto-confirm if all units placed
-    if(!STATE.unplaced_units || STATE.unplaced_units.length === 0){
-        let cr;
-        if(MODE === 'hotseat') cr = await apiFetch(`/api/game/${GAME_ID}/hotseat`, {player:MY_PLAYER, action:'confirm'});
-        else cr = await apiFetch(`/api/game/${GAME_ID}/confirm`);
-        if(cr.ok){
-            if(MODE === 'hotseat' && !cr.battle_started){ MY_PLAYER = 3-MY_PLAYER; showOverlay(`PASS TO PLAYER ${MY_PLAYER}`, 'Deployment phase'); }
-            await fetchState();
-        }
-    }
-}
-
-async function confirmPlacement(){
-    // Check if there are unplaced units
-    if(STATE && STATE.unplaced_units && STATE.unplaced_units.length > 0){
-        showToast(`${STATE.unplaced_units.length} units not yet deployed!`);
-        return;
-    }
-    let r;
-    if(MODE === 'hotseat') r = await apiFetch(`/api/game/${GAME_ID}/hotseat`, {player:MY_PLAYER, action:'confirm'});
-    else r = await apiFetch(`/api/game/${GAME_ID}/confirm`);
-    if(r.ok){
-        if(MODE === 'hotseat' && !r.battle_started){ MY_PLAYER = 3-MY_PLAYER; showOverlay(`PASS TO PLAYER ${MY_PLAYER}`, 'Deployment phase'); }
-        await fetchState();
-    } else if(r.error) showToast(r.error);
-}
-
-async function gameAction(action, body){
-    let r;
-    if(MODE === 'hotseat') r = await apiFetch(`/api/game/${GAME_ID}/hotseat`, {player:MY_PLAYER, action, ...body});
-    else r = await apiFetch(`/api/game/${GAME_ID}/${action}`, body);
-    if(r.ok){
-        if(MODE === 'hotseat' && ['move','attack','special','pass_turn'].includes(action)){
-            MY_PLAYER = 3-MY_PLAYER; showOverlay(`PASS TO PLAYER ${MY_PLAYER}`, 'Battle phase');
-        }
-        await fetchState();
-    } else if(r.error) showToast(r.error);
-    return r;
-}
-
-async function doPlace(uid, col, row){
-    await gameAction('place', {unit_id:uid, col, row});
-    // Auto-select next unplaced unit for fast placement
-    if(STATE && STATE.unplaced_units && STATE.unplaced_units.length > 0){
-        selectPlacementUnit(STATE.unplaced_units[0].id);
-    }
-}
-async function doMove(uid, col, row){ cancelSelection(); await gameAction('move', {unit_id:uid, col, row}); }
-async function doAttack(aid, tid){ cancelSelection(); await gameAction('attack', {attacker_id:aid, target_id:tid}); }
-async function doSpecial(uid, act, tid){ cancelSelection(); await gameAction('special', {unit_id:uid, action:act, target_id:tid}); }
-async function passTurn(){ cancelSelection(); await gameAction('pass_turn', {}); }
-
-function cancelSelection(){ selectedUnit=null; highlightHexes=[]; updateUI(); render(); }
-
-// ============================================================
-// CUSTOM DIALOG SYSTEM (replaces all browser confirm/prompt/alert)
-// ============================================================
-let dialogResolve = null;
-let overlayShown = false;
-
-function _showDialog({title, sub='', okText='OK', cancelText=null, inputDefault=null}){
-    return new Promise(resolve => {
-        dialogResolve = resolve;
-        overlayShown = true;
-        document.getElementById('overlay-title').textContent = title;
-        document.getElementById('overlay-sub').textContent = sub;
-        const btnOk = document.getElementById('overlay-btn-ok');
-        const btnCancel = document.getElementById('overlay-btn-cancel');
-        const inputWrap = document.getElementById('overlay-input-wrap');
-        const input = document.getElementById('overlay-input');
-
-        btnOk.textContent = okText;
-        if(cancelText){
-            btnCancel.textContent = cancelText;
-            btnCancel.style.display = '';
-        } else {
-            btnCancel.style.display = 'none';
-        }
-        if(inputDefault !== null){
-            inputWrap.style.display = '';
-            input.value = inputDefault;
-            setTimeout(()=>input.focus(), 100);
-        } else {
-            inputWrap.style.display = 'none';
-        }
-        document.getElementById('overlay').classList.add('active');
-    });
-}
-
-function _closeDialog(result){
-    document.getElementById('overlay').classList.remove('active');
-    overlayShown = false;
-    if(dialogResolve) { dialogResolve(result); dialogResolve = null; }
-}
-
-// Wire up buttons
-document.getElementById('overlay-btn-ok').addEventListener('click', () => {
-    const input = document.getElementById('overlay-input');
-    const inputWrap = document.getElementById('overlay-input-wrap');
-    _closeDialog(inputWrap.style.display !== 'none' ? input.value : true);
-});
-document.getElementById('overlay-btn-cancel').addEventListener('click', () => _closeDialog(null));
-// Touch support
-document.getElementById('overlay-btn-ok').addEventListener('touchend', e => {
-    e.preventDefault();
-    const input = document.getElementById('overlay-input');
-    const inputWrap = document.getElementById('overlay-input-wrap');
-    _closeDialog(inputWrap.style.display !== 'none' ? input.value : true);
-});
-document.getElementById('overlay-btn-cancel').addEventListener('touchend', e => { e.preventDefault(); _closeDialog(null); });
-// Enter key in input
-document.getElementById('overlay-input').addEventListener('keydown', e => {
-    if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('overlay-btn-ok').click(); }
-});
-
-// Public API
-function customAlert(title, sub=''){
-    return _showDialog({title, sub, okText:'OK'});
-}
-function customConfirm(title, sub=''){
-    return _showDialog({title, sub, okText:'YES', cancelText:'NO'});
-}
-function customPrompt(title, defaultVal='', sub=''){
-    return _showDialog({title, sub, okText:'OK', cancelText:'CANCEL', inputDefault:defaultVal});
-}
-
-let panelVisible = true;
-function togglePanel(){
-    const p = document.getElementById('side-panel');
-    panelVisible = !panelVisible;
-    if(panelVisible) p.classList.remove('hidden');
-    else p.classList.add('hidden');
-    setTimeout(resizeCanvas, 50);
-}
-function hidePanel(){
-    if(!panelVisible) return;
-    panelVisible = false;
-    document.getElementById('side-panel').classList.add('hidden');
-    setTimeout(resizeCanvas, 50);
-}
-function showPanel(){
-    if(panelVisible) return;
-    panelVisible = true;
-    document.getElementById('side-panel').classList.remove('hidden');
-    setTimeout(resizeCanvas, 50);
-}
-function showToast(msg){
-    const el = document.createElement('div');
-    el.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);background:var(--accent2);color:#fff;padding:6px 18px;font-size:12px;z-index:200;font-family:var(--font-mono)';
-    el.textContent = msg; document.body.appendChild(el); setTimeout(()=>el.remove(), 2000);
-}
-
-// ============================================================
-// UI UPDATE
-// ============================================================
 function updateUI(){
-    if(!STATE) return;
-    const {phase, current_player: cp, turn, winner, my_player: mp} = STATE;
-    const myTurn = cp === mp;
+  if(!gameState) return;
+  const phaseNames = {placement:'FÁZE 1 – Rozestavení', battle:'FÁZE 2 – Boj', finished:'Konec hry'};
+  document.getElementById('phase-badge').textContent = phaseNames[gameState.phase] || gameState.phase;
 
-    document.getElementById('turn-info').textContent = `TURN ${turn}`;
-    document.getElementById('phase-info').textContent = phase === 'placement' ? 'DEPLOYMENT' : phase === 'battle' ? 'COMBAT' : 'FINISHED';
-    document.getElementById('player-info').textContent = `P${mp}` + (myTurn && phase==='battle' ? ' // YOUR TURN' : '');
-    const hasUnplaced = STATE.unplaced_units && STATE.unplaced_units.length > 0;
-    document.getElementById('btn-random').style.display = phase === 'placement' && hasUnplaced ? '' : 'none';
-    document.getElementById('btn-confirm').style.display = phase === 'placement' && !hasUnplaced ? '' : 'none';
-    document.getElementById('btn-pass').style.display = phase === 'battle' && myTurn ? '' : 'none';
-    document.getElementById('btn-cancel').style.display = selectedUnit ? '' : 'none';
+  // Phase-specific UI
+  const isPlacement = gameState.phase === 'placement';
+  document.getElementById('placement-actions').style.display = isPlacement ? 'flex' : 'none';
+  document.getElementById('battle-actions').style.display = isPlacement ? 'none' : 'flex';
+  document.getElementById('placement-bottom').style.display = isPlacement ? 'flex' : 'none';
+  document.getElementById('battle-bottom').style.display = isPlacement ? 'none' : 'flex';
 
-    // Side panel: on desktop always visible, on mobile hidden during battle
-    const panelBtn = document.getElementById('btn-panel');
-    const isMobile = window.innerWidth <= 700;
-    if(phase === 'placement'){
-        showPanel();
-        panelBtn.style.display = 'none';
-    } else if(isMobile){
-        panelBtn.style.display = '';
-        hidePanel();
-    } else {
-        // Desktop: keep panel visible, no toggle button needed
-        showPanel();
-        panelBtn.style.display = 'none';
-    }
+  // Mobile swipe bar shown only during placement (and not yet confirmed)
+  const mp = document.getElementById('mobile-picker');
+  mp.classList.toggle('show', isPlacement && !gameState.placement_confirmed[myPlayer]);
 
-    updateSidePanel();
-    if(phase === 'finished' && !overlayShown){
-        customAlert(winner === mp ? 'VICTORY' : 'DEFEAT', `Player ${winner} wins`).then(() => {
-            GAME_ID=null; STATE=null; selectedUnit=null; showScreen('lobby');
-        });
-    }
-}
+  // Turn banner
+  const tb = document.getElementById('turn-banner');
+  tb.classList.remove('your-turn','opp-turn');
+  if(gameState.phase === 'battle'){
+    const isMyTurn = gameState.current_player === myPlayer;
+    tb.textContent = (isMyTurn ? 'Jsi na tahu' : 'Tah soupeře') + ` – Tah ${gameState.turn}`;
+    tb.classList.add(isMyTurn ? 'your-turn':'opp-turn');
+  }else if(gameState.phase === 'placement'){
+    const conf = gameState.placement_confirmed[myPlayer];
+    tb.textContent = conf ? 'Rozestavení potvrzeno, čekáme na soupeře…' : 'Rozestav jednotky';
+  }else{
+    tb.textContent = gameState.winner === myPlayer ? '🏆 Vyhráls!' : '💀 Prohráls';
+  }
 
-function updateSidePanel(){
-    const ip = document.getElementById('info-panel');
-    const lp = document.getElementById('log-panel');
+  if(isPlacement){
+    renderUnitPicker();
+    renderFormationLoader();
+    updateHexesFilled();
+  }else{
+    renderLog();
+    updateBattleActions();
+  }
 
-    if(STATE.phase === 'placement'){
-        const unplaced = STATE.unplaced_units || [];
-        const placed = STATE.my_units || [];
-        let h = '<h3>UNDEPLOYED UNITS</h3><div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">Select unit, then click hex</div>';
-        for(const u of unplaced){
-            const sel = selectedUnit?.id === u.id;
-            h += unitCard(u, sel, false, true);
-        }
-        if(placed.length){
-            h += '<h3 style="margin-top:10px">DEPLOYED</h3>';
-            for(const u of placed) h += unitCard(u, false, true, true);
-        }
-        ip.innerHTML = h;
-    } else if(STATE.phase === 'battle'){
-        let h = '<h3>MY FORCES</h3>';
-        for(const u of STATE.my_units||[])
-            h += unitCard(u, selectedUnit?.id === u.id, false, true);
-        const dead = STATE.dead_own || [];
-        if(dead.length){
-            h += '<h3 style="margin-top:10px;color:var(--accent2)">CASUALTIES</h3>';
-            for(const u of dead) h += `<div style="font-size:10px;color:#333;padding:1px 0">${u.name_cs} (${u.base_attack})</div>`;
-        }
-        ip.innerHTML = h;
-    } else {
-        ip.innerHTML = `<h3>MISSION COMPLETE</h3><p style="color:var(--gold)">Winner: Player ${STATE.winner}</p>`;
-    }
+  // Speedup visibility
+  const btnSpeed = document.getElementById('btn-speedup');
+  if(btnSpeed && gameState.phase === 'battle'){
+    const iAmWaiting = gameState.current_player !== myPlayer;
+    const elapsed = Date.now()/1000 - gameState.last_action_ts;
+    btnSpeed.style.display = (iAmWaiting && elapsed > 120 && !gameState.speedup_requested_by) ? 'inline-block':'none';
+  }
 
-    const logs = STATE.log || [];
-    lp.innerHTML = '<h3 style="font-size:10px;color:var(--text-dim)">COMMS LOG</h3>' +
-        logs.slice(-15).reverse().map(l => `<div class="entry">[T${l.turn}] ${l.msg}</div>`).join('');
-}
+  // Speedup deadline badge
+  const cb = document.getElementById('countdown-badge');
+  if(gameState.speedup_deadline_ts && gameState.current_player === myPlayer){
+    const remain = Math.max(0, Math.ceil(gameState.speedup_deadline_ts - Date.now()/1000));
+    cb.textContent = `⚠ Zrychlení hry: ${remain}s`;
+    cb.classList.add('active');
+  }else{
+    cb.classList.remove('active');
+  }
 
-function unitCard(u, selected, placed, clickable){
-    const onclick = clickable ? `onclick="${STATE.phase==='placement'?'selectPlacementUnit':'selectBattleUnit'}('${u.id}')"` : '';
-    return `<div class="unit-card ${selected?'selected':''} ${placed?'placed':''}" ${onclick}>
-        <div class="abbr" style="color:var(--accent)">${u.abbr||'??'}</div>
-        <div class="info"><div class="name">${u.name_cs}</div>
-        <div class="stats">${u.category||''} mv:${u.movement??'?'}${u.revealed?' [EXPOSED]':''}</div></div>
-        <div class="atk">${u.attack}</div></div>`;
+  // Confirm button state
+  if(isPlacement){
+    const cb = document.getElementById('confirm-btn');
+    const allFilled = countFilledHexes() === 51;
+    cb.disabled = gameState.placement_confirmed[myPlayer];
+    cb.textContent = gameState.placement_confirmed[myPlayer]
+      ? '✓ Potvrzeno (čeká se)'
+      : (allFilled ? '✓ Potvrdit rozestavení' : `✓ Potvrdit (${countFilledHexes()}/51)`);
+  }
 }
 
 // ============================================================
-// SELECTION
+// UNIT PICKER (placement)
 // ============================================================
-function selectPlacementUnit(uid){
-    const all = [...(STATE.unplaced_units||[]), ...(STATE.my_units||[])];
-    const u = all.find(x => x.id === uid);
-    if(!u) return;
-    if(selectedUnit?.id === uid){ cancelSelection(); return; }
-    selectedUnit = u;
-    highlightHexes = getPlacementHexes(u);
-    updateUI(); render();
-}
+function renderUnitPicker(){
+  const pcEl = document.getElementById('unit-picker');
+  const mobEl = document.getElementById('mobile-picker');
+  pcEl.innerHTML = '';
+  mobEl.innerHTML = '';
+  const grid = document.createElement('div'); grid.className = 'grid'; pcEl.appendChild(grid);
 
-function selectBattleUnit(uid){
-    const u = (STATE.my_units||[]).find(x => x.id === uid);
-    if(!u || STATE.current_player !== MY_PLAYER) return;
-    if(selectedUnit?.id === uid){ cancelSelection(); return; }
-    selectedUnit = u; highlightHexes = [];
-    const aa = STATE.available_actions;
-    if(!aa){ updateUI(); render(); return; }
-    const m = aa.moves.find(x => x.unit_id === uid);
-    if(m) m.targets.forEach(t => highlightHexes.push({col:t.col, row:t.row, type:'move'}));
-    const a = aa.attacks.find(x => x.unit_id === uid);
-    if(a) a.targets.forEach(t => highlightHexes.push({col:t.col, row:t.row, type:'attack', target_id:t.unit_id}));
-    const s = aa.specials.find(x => x.unit_id === uid);
-    if(s) s.actions.forEach(t => highlightHexes.push({col:t.col, row:t.row, type:'special', special_action:t.action, target_id:t.target_id}));
-    updateUI(); render();
-}
+  const deployed = {};
+  gameState.my_units.forEach(u=>{ deployed[u.type] = (deployed[u.type]||0)+1; });
 
-function getPlacementHexes(u){
-    if(!STATE) return [];
-    const hexes = [];
-    for(const c of STATE.board||[]){
-        if(c.is_mountain || c.zone_player !== MY_PLAYER || c.zone_type !== 'level') continue;
-        const occ = (STATE.my_units||[]).some(o => o.placed && o.col===c.col && o.row===c.row && o.id!==u.id);
-        if(!occ) hexes.push({col:c.col, row:c.row, type:'place'});
-    }
-    return hexes;
+  UNIT_ORDER.forEach(t=>{
+    const d = UNIT_DEFS_CLIENT[t];
+    const used = deployed[t] || 0;
+    const exhausted = used >= d.max;
+    const b1 = makePickerBtn(t, d, used, exhausted);
+    const b2 = makePickerBtn(t, d, used, exhausted);
+    grid.appendChild(b1);
+    mobEl.appendChild(b2);
+  });
 }
-
-function findUnit(uid){
-    return [...(STATE.my_units||[]), ...(STATE.unplaced_units||[]), ...(STATE.enemy_units||[])].find(u => u.id===uid);
+function makePickerBtn(t, d, used, exhausted){
+  const b = document.createElement('button');
+  b.className = 'picker-btn' + (exhausted ? ' exhausted' : '') + (pickerType === t ? ' active' : '');
+  b.innerHTML = `<span class="abbr">${d.abbr}</span><span class="nm">${d.name}</span><span class="cnt">${used}/${d.max}</span>`;
+  b.title = `${d.name}: síla ${d.atk}, pohyb ${d.mv}\n${d.desc}`;
+  if(!exhausted) b.onclick = ()=>selectPickerType(t);
+  return b;
+}
+function selectPickerType(t){
+  pickerType = (pickerType === t) ? null : t;
+  renderUnitPicker();
 }
 
 // ============================================================
-// HEX MATH – flip view so own territory is always at bottom
+// FORMATIONS LOADER (in placement phase, sidebar)
 // ============================================================
-function flipRow(row){ return MY_PLAYER === 1 ? (16 - row) : row; }
-function hexToPixel(col, row){
-    const r=flipRow(row);
-    return { x: HEX_SIZE*SQRT3*(col+0.5*(row&1))*zoom + camX, y: HEX_SIZE*1.5*r*zoom + camY };
+let cachedPresets = [];
+async function renderFormationLoader(){
+  const el = document.getElementById('form-loader');
+  el.innerHTML = '';
+  const p = await api('GET','/api/presets');
+  cachedPresets = p.ok ? p.presets : [];
+  for(let i=1;i<=5;i++){
+    const found = cachedPresets.find(x=>x.slot===i);
+    const b = document.createElement('button');
+    b.className = 'fbtn' + (found ? '' : ' empty');
+    b.textContent = found ? `${i}. ${found.name}` : `${i}. —`;
+    if(found) b.onclick = ()=>loadPreset(found);
+    el.appendChild(b);
+  }
 }
-function hexToPixelRaw(col, row){
-    const r=flipRow(row);
-    return { x: HEX_SIZE*SQRT3*(col+0.5*(row&1)), y: HEX_SIZE*1.5*r };
-}
-
-function pixelToHex(px, py){
-    // Convert screen pixel to world coordinates (undo zoom + pan)
-    const wx = (px - camX) / zoom, wy = (py - camY) / zoom;
-    let bc=0, br=0, bd=Infinity;
-    for(let r=0;r<17;r++){
-        const half=Math.min(r,16-r);
-        const bf = (r>=7 && r<=9) ? 1 : 0; // battlefield shrink
-        const s = r%2===1 ? 8-half-1+bf : 8-half+bf;
-        const w = r%2===1 ? 2*half+2-2*bf : 2*half+1-2*bf;
-        for(let i=0;i<w;i++){
-            const c=s+i, p=hexToPixelRaw(c,r);
-            const d=(p.x-wx)**2+(p.y-wy)**2;
-            if(d<bd){bd=d;bc=c;br=r;}
-        }
-    }
-    return bd < (HEX_SIZE*1.2)**2 ? {col:bc, row:br} : null;
+async function loadPreset(preset){
+  const r = await api('POST', `/api/game/${currentGameId}/apply_preset`, {preset: preset.units});
+  if(!r.ok){ toast('Chyba při načtení formace: '+r.error); return; }
+  toast(`Formace "${preset.name}" načtena`);
+  refreshState();
 }
 
-function drawHex(cx, cy, sz, fill, stroke, lw=1){
-    const s = sz * zoom;
-    ctx.beginPath();
-    for(let i=0;i<6;i++){
-        const a=Math.PI/180*(60*i-30);
-        const hx=cx+s*Math.cos(a), hy=cy+s*Math.sin(a);
-        i===0?ctx.moveTo(hx,hy):ctx.lineTo(hx,hy);
-    }
-    ctx.closePath();
-    if(fill){ctx.fillStyle=fill;ctx.fill();}
-    if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}
+function countFilledHexes(){
+  if(!gameState) return 0;
+  return gameState.my_units.filter(u=>u.placed).length;
+}
+function updateHexesFilled(){
+  document.getElementById('hexes-filled').textContent = `${countFilledHexes()} / 51`;
 }
 
 // ============================================================
-// RENDERING
+// PLACEMENT ACTIONS
 // ============================================================
-const ZONE_COLORS = {
-    citadel_1:'#2a0a0a', citadel_2:'#2a0a0a',
-    level_1_0:'#0a1a2a', level_1_1:'#0a2a1a', level_1_2:'#2a2a0a',
-    level_2_0:'#0a1a2a', level_2_1:'#0a2a1a', level_2_2:'#2a2a0a',
-    battlefield:'#121820', mountain:'#1a1510',
+async function clearPlacement(){
+  if(!confirm('Opravdu vymazat všechny rozmístěné jednotky?')) return;
+  await api('POST', `/api/game/${currentGameId}/clear_placement`);
+  pickerType = null;
+  refreshState();
+}
+async function randomPlace(){
+  await api('POST', `/api/game/${currentGameId}/random_place`);
+  refreshState();
+}
+async function confirmPlacement(){
+  const allFilled = countFilledHexes() === 51;
+  let force = false;
+  if(!allFilled){
+    if(!confirm('Nejsou obsazena všechna pole. Potvrdit i tak (prázdná pole zůstanou prázdná)?')) return;
+    force = true;
+  }
+  const r = await api('POST', `/api/game/${currentGameId}/confirm`, {force});
+  if(!r.ok){ toast('Chyba: '+r.error); return; }
+  if(r.battle_started) toast('BOJ ZAČÍNÁ!');
+  refreshState();
+}
+async function savePresetDialog(){
+  const name = prompt('Název formace (max 12 znaků):', '');
+  if(!name) return;
+  if(name.length > 12){ toast('Název max 12 znaků!'); return; }
+  const slot = parseInt(prompt('Slot 1-5:','1'));
+  if(isNaN(slot) || slot<1 || slot>5){ toast('Slot musí být 1-5'); return; }
+  const units = gameState.my_units.filter(u=>u.placed).map(u=>({utype:u.type, col:u.col, row:u.row}));
+  const r = await api('POST','/api/presets',{slot, name, units});
+  if(r.ok) toast('Formace uložena'); else toast('Chyba: '+r.error);
+}
+
+// ============================================================
+// BATTLE ACTIONS
+// ============================================================
+async function passTurn(){
+  await api('POST', `/api/game/${currentGameId}/pass`);
+  refreshState();
+}
+async function requestSpeedup(){
+  const r = await api('POST', `/api/game/${currentGameId}/speedup`);
+  if(!r.ok){ toast('Chyba: '+r.error); return; }
+  toast('Zrychlení spuštěno - soupeř má 60 sekund');
+  refreshState();
+}
+function getSelectedUnit(){
+  if(!selectedUnitId || !gameState) return null;
+  return (gameState.my_units||[]).find(u=>u.id===selectedUnitId && u.placed && u.alive)
+      || (gameState.enemy_units||[]).find(u=>u.id===selectedUnitId && u.placed && u.alive)
+      || null;
+}
+function setSelectedUnit(u){
+  selectedUnitId = u ? u.id : null;
+  // Sync info panel to selection in battle (and clear stale hover)
+  if(u) renderInfoPanel(u);
+}
+function setIntent(i){
+  intent = i;
+  ['btn-move','btn-attack','btn-special'].forEach(id=>{
+    const b = document.getElementById(id);
+    if(!b) return;
+    b.classList.remove('primary');
+  });
+  const activeId = {move:'btn-move', attack:'btn-attack', special:'btn-special'}[i];
+  if(activeId) document.getElementById(activeId).classList.add('primary');
+  draw();
+}
+function updateBattleActions(){
+  const sel = getSelectedUnit();
+  const lbl = document.getElementById('sel-unit-label');
+  if(sel){
+    const d = UNIT_DEFS_CLIENT[sel.type] || {};
+    lbl.textContent = `Vybráno: ${d.name || sel.type} (síla ${sel.attack})`;
+  }else{
+    lbl.textContent = 'Klikni na vlastní jednotku pro akci';
+  }
+  const isMyTurn = gameState.current_player === myPlayer;
+  const aa = gameState.available_actions || {};
+  const hasMoves   = sel ? (aa.moves||[]).some(x=>x.unit_id===sel.id) : false;
+  const hasAttacks = sel ? (aa.attacks||[]).some(x=>x.unit_id===sel.id) : false;
+  const hasSp      = sel ? (aa.specials||[]).some(x=>x.unit_id===sel.id) : false;
+  document.getElementById('btn-move').disabled = !sel || !isMyTurn || !hasMoves;
+  document.getElementById('btn-attack').disabled = !sel || !isMyTurn || !hasAttacks;
+  document.getElementById('btn-special').disabled = !sel || !isMyTurn || !hasSp;
+}
+
+// ============================================================
+// LOG
+// ============================================================
+function renderLog(){
+  const el = document.getElementById('log-panel');
+  el.innerHTML = '';
+  (gameState.log||[]).slice().reverse().forEach(e=>{
+    const d = document.createElement('div');
+    d.className = 'entry';
+    d.innerHTML = `<span class="t">T${e.turn}</span>${e.msg}`;
+    el.appendChild(d);
+  });
+}
+
+// ============================================================
+// HEX BOARD RENDERING
+// ============================================================
+const canvas = document.getElementById('board-canvas');
+const ctx = canvas.getContext('2d');
+let HEX_SIZE = 30;
+let boardOffset = {x:0, y:0};
+
+const EVEN_R_DIRS = [[-1,-1],[0,-1],[-1,0],[1,0],[-1,1],[0,1]];
+const ODD_R_DIRS  = [[0,-1],[1,-1],[-1,0],[1,0],[0,1],[1,1]];
+function hexNeighbors(c,r){
+  const d = r%2===1 ? ODD_R_DIRS : EVEN_R_DIRS;
+  return d.map(([dc,dr])=>[c+dc, r+dr]);
+}
+
+function hexCenter(col, row){
+  const h = HEX_SIZE;
+  const w = Math.sqrt(3)*h;
+  const x = (col - 4) * w + (row%2===1 ? w/2 : 0);
+  const y = row * h * 1.5;
+  return {x: x + boardOffset.x, y: y + boardOffset.y};
+}
+function drawHex(cx, cy, size, fill, stroke, strokeWidth=1){
+  ctx.beginPath();
+  for(let i=0;i<6;i++){
+    const ang = Math.PI/180 * (60*i + 30); // pointy-top
+    const px = cx + size * Math.cos(ang);
+    const py = cy + size * Math.sin(ang);
+    i===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
+  }
+  ctx.closePath();
+  if(fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = strokeWidth; ctx.stroke(); }
+}
+
+// ===== Resolve CSS custom properties so canvas honors re-skins =====
+const _css = (name) => {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || '';
 };
-
-function getZoneColor(c){
-    if(c.is_mountain) return ZONE_COLORS.mountain;
-    if(c.zone_type==='citadel') return ZONE_COLORS[`citadel_${c.zone_player}`];
-    if(c.zone_type==='level') return ZONE_COLORS[`level_${c.zone_player}_${c.zone_level}`];
-    return ZONE_COLORS.battlefield;
+// Cache (refreshed on resize / token reskin via refreshTokens())
+let TOKENS = {};
+function refreshTokens(){
+  TOKENS = {
+    l0: _css('--level-0-body') || '#aed6f1',
+    l1: _css('--level-1-body') || '#abebc6',
+    l2: _css('--level-2-body') || '#f5cba7',
+    revealed: _css('--revealed') || '#f1c40f',
+    concealed: _css('--concealed') || '#1e6b3a',
+    corrupted: _css('--corrupted') || '#c0392b',
+    p1flag: _css('--p1-flag') || '#2e86de',
+    p2flag: _css('--p2-flag') || '#c0392b',
+    zoneCitadel: _css('--zone-citadel') || '#3a2a1a',
+    zoneBattle:  _css('--zone-battlefield') || '#1a1f2e',
+    zoneMountain: _css('--zone-mountain') || '#353f5a',
+    border: _css('--border') || '#2a3450',
+    bg: _css('--bg') || '#0a0d16',
+    accent: _css('--accent') || '#4fd1ff',
+    accent2: _css('--accent-2') || '#ff5470',
+    gold: _css('--gold') || '#ffd466',
+    textDim: _css('--text-dim') || '#6c7b93',
+  };
 }
-
-function render(){
-    const W=canvas.width, H=canvas.height;
-    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg'); ctx.fillRect(0,0,W,H);
-    if(!STATE) return;
-
-    // Hexes
-    for(const c of STATE.board||[]){
-        const {x,y}=hexToPixel(c.col,c.row);
-        if(x<-50||x>W+50||y<-50||y>H+50) continue;
-        let fill=getZoneColor(c), stroke='#1a2235', lw=0.5;
-        const hl = highlightHexes.find(h=>h.col===c.col&&h.row===c.row);
-        if(hl){
-            if(hl.type==='move'||hl.type==='place'){fill='rgba(0,255,136,.12)';stroke='#00ff88';lw=1.5;}
-            else if(hl.type==='attack'){fill='rgba(255,61,61,.15)';stroke='#ff3d3d';lw=1.5;}
-            else if(hl.type==='special'){fill='rgba(0,229,255,.12)';stroke='#00e5ff';lw=1.5;}
-        }
-        if(hoverHex&&hoverHex.col===c.col&&hoverHex.row===c.row){stroke='#fff';lw=1.5;}
-        drawHex(x,y,HEX_SIZE-1,fill,stroke,lw);
-
-        if(c.is_mountain){
-            ctx.fillStyle='#3a3020';ctx.font=`${HEX_SIZE*.65*zoom}px sans-serif`;
-            ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('\u25B2',x,y);
-        }
-        if(c.zone_type==='citadel'){
-            ctx.fillStyle=c.zone_player===MY_PLAYER?'#00e5ff':'#ff3d3d';
-            ctx.font=`bold ${HEX_SIZE*.55*zoom}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
-            ctx.fillText('\u2655',x,y);
-        }
-    }
-
-    // Zone labels
-    const labels = [{r:0,t:'CITADEL',p:1},{r:1.5,t:'LV0',p:1},{r:3.5,t:'LV1',p:1},{r:5.5,t:'LV2',p:1},
-        {r:8,t:'BATTLEFIELD',p:0},{r:10.5,t:'LV2',p:2},{r:12.5,t:'LV1',p:2},{r:14.5,t:'LV0',p:2},{r:16,t:'CITADEL',p:2}];
-    ctx.font=`${9*zoom}px Orbitron,monospace`;ctx.textAlign='left';ctx.textBaseline='middle';
-    for(const l of labels){
-        const {y}=hexToPixel(0,l.r);
-        ctx.fillStyle=l.p===MY_PLAYER?'#00e5ff44':l.p===(3-MY_PLAYER)?'#ff3d3d44':'#ffffff22';
-        ctx.fillText(l.t,6,y);
-    }
-
-    // Last-move trail (draw before units so units render on top)
-    for(const p of [1,2]){
-        const lm = lastMove[p];
-        if(!lm) continue;
-        const from = hexToPixel(lm.fromCol, lm.fromRow);
-        const to = hexToPixel(lm.toCol, lm.toRow);
-        const color = p === MY_PLAYER ? 'rgba(0,229,255,0.25)' : 'rgba(255,61,61,0.25)';
-        // Trail line
-        ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y);
-        ctx.strokeStyle = color; ctx.lineWidth = 3*zoom; ctx.setLineDash([4*zoom,4*zoom]);
-        ctx.stroke(); ctx.setLineDash([]);
-        // Origin marker
-        drawHex(from.x, from.y, HEX_SIZE*0.4, 'transparent', p===MY_PLAYER?'#00e5ff55':'#ff3d3d55', 1.5);
-    }
-
-    // Units
-    for(const u of [...(STATE.my_units||[]),...(STATE.enemy_units||[])]){
-        if(!u.placed) continue;
-        // Check for active animation
-        const anim = anims.find(a => a.id === u.id && a.type !== 'death');
-        let ux, uy;
-        if(anim){
-            const from = hexToPixel(anim.fromCol, anim.fromRow);
-            const to = hexToPixel(anim.toCol, anim.toRow);
-            ux = from.x + (to.x - from.x) * anim.progress;
-            uy = from.y + (to.y - from.y) * anim.progress;
-        } else {
-            const p = hexToPixel(u.col, u.row);
-            ux = p.x; uy = p.y;
-        }
-        if(ux<-50||ux>W+50||uy<-50||uy>H+50) continue;
-
-        // Last-move pulsing ring
-        const isLastMove = (lastMove[u.owner]?.id === u.id) && !anim;
-        if(isLastMove){
-            const pulse = 0.7 + 0.3*Math.sin(performance.now()/300);
-            const rc = HEX_SIZE*0.82*zoom;
-            ctx.beginPath(); ctx.arc(ux,uy,rc,0,Math.PI*2);
-            ctx.strokeStyle = u.owner===MY_PLAYER ? `rgba(0,229,255,${pulse})` : `rgba(255,61,61,${pulse})`;
-            ctx.lineWidth = 2.5*zoom; ctx.stroke();
-        }
-
-        drawUnit(ux,uy,u);
-    }
-
-    // Death animations (flash + fade)
-    for(const a of anims){
-        if(a.type !== 'death') continue;
-        const {x,y} = hexToPixel(a.fromCol, a.fromRow);
-        const alpha = 1 - a.progress;
-        const sz = HEX_SIZE*0.6*zoom*(1 + a.progress*0.5);
-        ctx.beginPath(); ctx.arc(x,y,sz,0,Math.PI*2);
-        ctx.fillStyle = `rgba(255,100,50,${alpha*0.6})`;
-        ctx.fill();
-        ctx.strokeStyle = `rgba(255,200,50,${alpha})`;
-        ctx.lineWidth = 2; ctx.stroke();
-    }
-
+function levelColorSolid(level){
+  return [TOKENS.l0, TOKENS.l1, TOKENS.l2][level] || '#888';
 }
-
-function drawUnit(x, y, u){
-    const own = u.owner===MY_PLAYER;
-    const sel = selectedUnit?.id===u.id;
-    const r = HEX_SIZE*.62*zoom;
-
-    // Try sprite first
-    const spriteKey = own||u.revealed ? u.type : 'unknown';
-    if(SPRITES[spriteKey]){
-        ctx.save();
-        ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.clip();
-        ctx.drawImage(SPRITES[spriteKey], x-r, y-r, r*2, r*2);
-        ctx.restore();
-        ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
-        ctx.strokeStyle = sel?'#fff':own?'#00e5ff':'#ff3d3d'; ctx.lineWidth=sel?2.5:1.5; ctx.stroke();
-        if(own||u.revealed){
-            const bw=8*zoom, bh=5.5*zoom;
-            ctx.fillStyle='#000';ctx.fillRect(x-bw,y+r-bh*2,bw*2,bh*2);
-            ctx.fillStyle='#ffd700';ctx.font=`bold ${9*zoom}px Orbitron`;ctx.textAlign='center';ctx.textBaseline='middle';
-            ctx.fillText(u.attack,x,y+r-bh);
-        }
-        return;
-    }
-
-    // Fallback: canvas shapes
-    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
-    ctx.fillStyle = own ? (sel?'#0a2a50':'#0a1530') : (u.revealed?'#2a0a0a':'#1a1a1a');
-    ctx.fill();
-    ctx.strokeStyle = sel?'#fff':own?'#00e5ff':(u.revealed?'#ff3d3d':'#444');
-    ctx.lineWidth = sel?2.5:1.5; ctx.stroke();
-
-    ctx.fillStyle = own?'#00e5ff':(u.revealed?'#ff3d3d':'#666');
-    ctx.font = `bold ${HEX_SIZE*.35*zoom}px Orbitron,monospace`;
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(own||u.revealed?u.abbr:'??', x, y-2*zoom);
-
-    if(own||u.revealed){
-        ctx.fillStyle='#ffd700'; ctx.font=`${HEX_SIZE*.3*zoom}px Share Tech Mono,monospace`;
-        ctx.fillText(u.attack, x, y+r*.5);
-    }
-    if(own && u.revealed){
-        ctx.fillStyle='#ff3d3d';ctx.beginPath();ctx.arc(x+r*.7,y-r*.7,2.5*zoom,0,Math.PI*2);ctx.fill();
-    }
+function zoneColor(zt, zp, zl){
+  if(zt === 'citadel') return TOKENS.zoneCitadel;
+  if(zt === 'battlefield') return TOKENS.zoneBattle;
+  if(zt === 'level'){
+    // Very faint tint of the level color for zone background (darker)
+    const base = [TOKENS.l0, TOKENS.l1, TOKENS.l2][zl] || TOKENS.zoneBattle;
+    return darken(base, 0.80);
+  }
+  return TOKENS.zoneBattle;
 }
-
-// ============================================================
-// INPUT – click, drag-pan, wheel-zoom, touch pinch
-// ============================================================
-
-// Mouse hover
-canvas.addEventListener('mousemove', e => {
-    if(isDragging) return;
-    const rc=canvas.getBoundingClientRect();
-    const h=pixelToHex(e.clientX-rc.left, e.clientY-rc.top);
-    if(h&&(!hoverHex||hoverHex.col!==h.col||hoverHex.row!==h.row)){hoverHex=h;render();}
-});
-
-// Left-click: short click = hex action, drag = pan
-let clickStart = {x:0, y:0};
-canvas.addEventListener('mousedown', e => {
-    clickStart = {x: e.clientX, y: e.clientY};
-    dragStartX = e.clientX; dragStartY = e.clientY;
-    dragCamX = camX; dragCamY = camY;
-    isDragging = false;
-});
-
-canvas.addEventListener('mousemove', e => {
-    if(e.buttons === 0) return; // no button held
-    const dx = e.clientX - clickStart.x, dy = e.clientY - clickStart.y;
-    if(!isDragging && dx*dx + dy*dy > 16) {
-        isDragging = true;
-        canvas.style.cursor = 'grabbing';
-    }
-    if(isDragging){
-        camX = dragCamX + (e.clientX - dragStartX);
-        camY = dragCamY + (e.clientY - dragStartY);
-        render();
-    }
-});
-
-canvas.addEventListener('mouseup', e => {
-    if(isDragging){
-        isDragging = false;
-        canvas.style.cursor = 'default';
-        return;
-    }
-    // Short click = hex action
-    const rc=canvas.getBoundingClientRect();
-    const h=pixelToHex(e.clientX-rc.left, e.clientY-rc.top);
-    if(!h||!STATE) return;
-    STATE.phase==='placement' ? handlePlacementClick(h.col,h.row) : handleBattleClick(h.col,h.row);
-});
-
-canvas.addEventListener('mouseleave', () => {
-    if(isDragging){ isDragging=false; canvas.style.cursor='default'; }
-});
-
-// Wheel zoom
-canvas.addEventListener('wheel', e => {
-    e.preventDefault();
-    const rc = canvas.getBoundingClientRect();
-    const mx = e.clientX - rc.left, my = e.clientY - rc.top;
-
-    const oldZoom = zoom;
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    zoom = Math.max(0.3, Math.min(5.0, zoom * delta));
-    userZoomed = true;
-
-    // Zoom toward mouse position
-    camX = mx - (mx - camX) * (zoom / oldZoom);
-    camY = my - (my - camY) * (zoom / oldZoom);
-    render();
-}, {passive: false});
-
-// Touch support: pinch-zoom + drag-pan
-let touches = [];
-let lastTouchDist = 0;
-let lastTouchMid = {x:0, y:0};
-
-canvas.addEventListener('touchstart', e => {
-    e.preventDefault();
-    touches = Array.from(e.touches);
-    if(touches.length === 1){
-        dragStartX = touches[0].clientX; dragStartY = touches[0].clientY;
-        dragCamX = camX; dragCamY = camY;
-        clickStart = {x: touches[0].clientX, y: touches[0].clientY};
-    }
-    if(touches.length === 2){
-        lastTouchDist = Math.hypot(touches[1].clientX-touches[0].clientX, touches[1].clientY-touches[0].clientY);
-        lastTouchMid = {x:(touches[0].clientX+touches[1].clientX)/2, y:(touches[0].clientY+touches[1].clientY)/2};
-    }
-}, {passive: false});
-
-canvas.addEventListener('touchmove', e => {
-    e.preventDefault();
-    const ts = Array.from(e.touches);
-    if(ts.length === 1){
-        camX = dragCamX + (ts[0].clientX - dragStartX);
-        camY = dragCamY + (ts[0].clientY - dragStartY);
-        isDragging = true;
-        render();
-    }
-    if(ts.length === 2){
-        const dist = Math.hypot(ts[1].clientX-ts[0].clientX, ts[1].clientY-ts[0].clientY);
-        const mid = {x:(ts[0].clientX+ts[1].clientX)/2, y:(ts[0].clientY+ts[1].clientY)/2};
-        const rc = canvas.getBoundingClientRect();
-        const mx = mid.x - rc.left, my = mid.y - rc.top;
-        const oldZoom = zoom;
-        zoom = Math.max(0.3, Math.min(3.0, zoom * (dist / lastTouchDist)));
-        camX = mx - (mx - camX) * (zoom / oldZoom);
-        camY = my - (my - camY) * (zoom / oldZoom);
-        // Also pan
-        camX += mid.x - lastTouchMid.x;
-        camY += mid.y - lastTouchMid.y;
-        lastTouchDist = dist;
-        lastTouchMid = mid;
-        isDragging = true;
-        render();
-    }
-}, {passive: false});
-
-canvas.addEventListener('touchend', e => {
-    e.preventDefault();
-    if(!isDragging && touches.length === 1){
-        const rc = canvas.getBoundingClientRect();
-        const h = pixelToHex(touches[0].clientX-rc.left, touches[0].clientY-rc.top);
-        if(h && STATE){
-            STATE.phase==='placement' ? handlePlacementClick(h.col,h.row) : handleBattleClick(h.col,h.row);
-        }
-    }
-    isDragging = false;
-    touches = Array.from(e.touches);
-}, {passive: false});
-
-// Prevent context menu on canvas
-canvas.addEventListener('contextmenu', e => e.preventDefault());
-
-// Keyboard: Escape + Home to reset view
-document.addEventListener('keydown', e => {
-    if(e.key==='Escape') cancelSelection();
-    if(e.key==='Home'){ userZoomed=false; resizeCanvas(); }
-});
-
-function handlePlacementClick(col,row){
-    if(!selectedUnit){
-        // Click on already-placed unit to re-select it
-        const u=(STATE.my_units||[]).find(u=>u.col===col&&u.row===row);
-        if(u) selectPlacementUnit(u.id);
-        return;
-    }
-    const hl=highlightHexes.find(h=>h.col===col&&h.row===row&&h.type==='place');
-    if(hl){
-        // Place unit – doPlace will auto-advance to next unplaced
-        doPlace(selectedUnit.id, col, row);
-    }
+function darken(hex, factor){
+  // factor 0..1 – amount of black to mix in
+  const m = hex.trim().match(/^#?([0-9a-f]{6})$/i);
+  if(!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = Math.round(((n>>16)&0xff) * (1-factor));
+  const g = Math.round(((n>>8)&0xff) * (1-factor));
+  const b = Math.round(( n     &0xff) * (1-factor));
+  return '#' + [r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
 }
-
-function handleBattleClick(col,row){
-    if(!STATE||STATE.current_player!==MY_PLAYER) return;
-    if(selectedUnit){
-        const hl=highlightHexes.find(h=>h.col===col&&h.row===row);
-        if(hl){
-            if(hl.type==='move') doMove(selectedUnit.id,col,row);
-            else if(hl.type==='attack') doAttack(selectedUnit.id,hl.target_id);
-            else if(hl.type==='special') doSpecial(selectedUnit.id,hl.special_action,hl.target_id);
-            return;
-        }
-        const u=(STATE.my_units||[]).find(u=>u.col===col&&u.row===row);
-        if(u){ selectBattleUnit(u.id); return; }
-        cancelSelection();
-    } else {
-        const u=(STATE.my_units||[]).find(u=>u.col===col&&u.row===row);
-        if(u) selectBattleUnit(u.id);
-    }
-}
-
-// ============================================================
-// RESIZE & CAMERA
-// ============================================================
-let userZoomed = false; // track if user manually zoomed
 
 function resizeCanvas(){
-    const w=document.getElementById('canvas-wrap');
-    if(!w) return;
-    const tb=document.getElementById('top-bar');
-    const ab=document.getElementById('action-bar');
-    const tbH = tb ? tb.offsetHeight : 0;
-    const abH = ab ? ab.offsetHeight : 0;
-    const cw = w.clientWidth || window.innerWidth;
-    const ch = (w.clientHeight || window.innerHeight) - tbH - abH;
-    canvas.width = Math.max(100, cw);
-    canvas.height = Math.max(100, ch);
-    canvas.style.width = cw + 'px';
-    canvas.style.height = ch + 'px';
-    if(!userZoomed) autoFitZoom();
-    else centerCamera();
-    render();
-}
-
-function getBoardBounds(){
-    // Compute actual pixel bounds from widest and tallest board extents
-    // Widest row: row 8, cols 0-16. Tallest: rows 0-16.
-    const corners = [
-        hexToPixelRaw(0, 8),   // leftmost hex (row 8 col 0)
-        hexToPixelRaw(16, 8),  // rightmost hex
-        hexToPixelRaw(8, 0),   // top citadel
-        hexToPixelRaw(8, 16),  // bottom citadel
-    ];
-    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
-    for(const p of corners){
-        if(p.x<minX) minX=p.x; if(p.x>maxX) maxX=p.x;
-        if(p.y<minY) minY=p.y; if(p.y>maxY) maxY=p.y;
-    }
-    return {minX, maxX, minY, maxY};
-}
-
-function centerCamera(){
-    const b = getBoardBounds();
-    const bw=(b.maxX-b.minX+HEX_SIZE*3)*zoom;
-    const bh=(b.maxY-b.minY+HEX_SIZE*3)*zoom;
-    camX=(canvas.width-bw)/2 - b.minX*zoom + HEX_SIZE*1.5*zoom;
-    camY=(canvas.height-bh)/2 - b.minY*zoom + HEX_SIZE*1.5*zoom;
-}
-
-function autoFitZoom(){
-    const b = getBoardBounds();
-    const bw = b.maxX - b.minX + HEX_SIZE*4;
-    const bh = b.maxY - b.minY + HEX_SIZE*4;
-    const zx = canvas.width * 0.95 / bw;
-    const zy = canvas.height * 0.95 / bh;
-    zoom = Math.min(zx, zy);
-    zoom = Math.max(0.3, Math.min(5.0, zoom));
-    centerCamera();
+  refreshTokens();
+  const area = document.getElementById('board-area');
+  if(!area) return;
+  const r = area.getBoundingClientRect();
+  canvas.width = r.width * (window.devicePixelRatio||1);
+  canvas.height = r.height * (window.devicePixelRatio||1);
+  canvas.style.width = r.width+'px';
+  canvas.style.height = r.height+'px';
+  ctx.setTransform(window.devicePixelRatio||1, 0,0, window.devicePixelRatio||1, 0,0);
+  // Fit board: 17 rows of hex, width per row ~14 units
+  const targetW = r.width - 24;
+  const targetH = r.height - 24;
+  const hForW = targetW / (Math.sqrt(3) * 15);
+  const hForH = targetH / (17 * 1.5 + 1);
+  HEX_SIZE = Math.max(10, Math.floor(Math.min(hForW, hForH)));
+  boardOffset.x = r.width / 2;
+  boardOffset.y = HEX_SIZE * 1.2;
+  draw();
 }
 window.addEventListener('resize', resizeCanvas);
 
-// ============================================================
-// POLLING
-// ============================================================
-setInterval(()=>{
-    if(!GAME_ID||!STATE||STATE.phase==='finished') return;
-    if(MODE==='online' && (STATE.current_player!==MY_PLAYER||STATE.phase==='placement')) fetchState();
-    if(MODE==='ai' && STATE.phase==='battle' && STATE.current_player!==MY_PLAYER) fetchState();
-}, 2000);
+function rgba(hex, alpha){
+  const m = (hex||'').trim().match(/^#?([0-9a-f]{6})$/i);
+  if(!m) return `rgba(0,0,0,${alpha})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n>>16)&0xff},${(n>>8)&0xff},${n&0xff},${alpha})`;
+}
 
-// Pulse render for last-move glow (every 100ms when in battle)
-setInterval(()=>{
-    if(STATE && STATE.phase==='battle' && (lastMove[1]||lastMove[2]) && anims.length===0) render();
-}, 100);
+function draw(){
+  if(!gameState || !canvas) return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Board cells
+  gameState.board.forEach(cell=>{
+    const {col,row,zone_type,zone_player,zone_level,is_mountain} = cell;
+    const p = hexCenter(col,row);
+    const zc = is_mountain ? TOKENS.zoneMountain : zoneColor(zone_type, zone_player, zone_level);
+    drawHex(p.x, p.y, HEX_SIZE-1, zc, TOKENS.border, 1);
+    if(is_mountain){
+      ctx.fillStyle = TOKENS.textDim; ctx.font = `${HEX_SIZE}px sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('▲', p.x, p.y);
+    }
+    if(zone_type === 'citadel'){
+      ctx.fillStyle = TOKENS.gold; ctx.font = `bold ${HEX_SIZE*0.9}px sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('⚑', p.x, p.y);
+    }
+  });
+
+  const sel = getSelectedUnit();
+
+  // Highlight reachable / attackable when in battle
+  if(gameState.phase === 'battle' && sel && gameState.current_player === myPlayer){
+    const aa = gameState.available_actions || {};
+    if(intent === 'move'){
+      const mv = (aa.moves||[]).find(x=>x.unit_id===sel.id);
+      if(mv){
+        mv.targets.forEach(t=>{
+          const p = hexCenter(t.col, t.row);
+          drawHex(p.x, p.y, HEX_SIZE-2, rgba(TOKENS.accent, 0.18), TOKENS.accent, 2);
+        });
+      }
+    }else if(intent === 'attack'){
+      const at = (aa.attacks||[]).find(x=>x.unit_id===sel.id);
+      if(at){
+        at.targets.forEach(t=>{
+          const p = hexCenter(t.col, t.row);
+          drawHex(p.x, p.y, HEX_SIZE-2, rgba(TOKENS.accent2, 0.18), TOKENS.accent2, 2);
+        });
+      }
+    }else if(intent === 'special'){
+      const sp = (aa.specials||[]).find(x=>x.unit_id===sel.id);
+      if(sp){
+        sp.actions.forEach(t=>{
+          const p = hexCenter(t.col, t.row);
+          drawHex(p.x, p.y, HEX_SIZE-2, rgba(TOKENS.gold, 0.18), TOKENS.gold, 2);
+        });
+      }
+    }
+  }
+
+  // Placement highlights (if a unit type is picked, show valid hexes = own level hexes that are empty)
+  if(gameState.phase === 'placement' && pickerType && !gameState.placement_confirmed[myPlayer]){
+    const occupied = new Set(gameState.my_units.filter(u=>u.placed).map(u=>`${u.col},${u.row}`));
+    const isArt = pickerType === 'artillery';
+    gameState.board.forEach(cell=>{
+      if(cell.zone_player !== myPlayer || cell.zone_type !== 'level' || cell.is_mountain) return;
+      if(occupied.has(`${cell.col},${cell.row}`)) return;
+      if(isArt && cell.zone_level !== 0) return;
+      const p = hexCenter(cell.col, cell.row);
+      drawHex(p.x, p.y, HEX_SIZE-2, rgba(TOKENS.accent, 0.10), TOKENS.accent, 1);
+    });
+  }
+
+  // Selected unit highlight
+  if(sel){
+    const p = hexCenter(sel.col, sel.row);
+    drawHex(p.x, p.y, HEX_SIZE, null, TOKENS.accent, 3);
+  }
+
+  // Units: own + enemy
+  const allUnits = [...(gameState.my_units||[]), ...(gameState.enemy_units||[])];
+  allUnits.forEach(u=>{
+    if(!u.placed || !u.alive) return;
+    drawUnit(u);
+  });
+
+  // Last-move trail (fades over ~2s)
+  if(lastMoveMarker){
+    const age = (Date.now() - lastMoveMarker.ts) / 1000;
+    if(age < 2){
+      const alpha = 0.85 * (1 - age/2);
+      const a = hexCenter(lastMoveMarker.fromC, lastMoveMarker.fromR);
+      const b = hexCenter(lastMoveMarker.toC, lastMoveMarker.toR);
+      ctx.strokeStyle = rgba(TOKENS.accent, alpha);
+      ctx.lineWidth = 3; ctx.setLineDash([6,4]);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.setLineDash([]);
+      // arrowhead
+      const ang = Math.atan2(b.y-a.y, b.x-a.x);
+      const hx = b.x - Math.cos(ang)*HEX_SIZE*0.4;
+      const hy = b.y - Math.sin(ang)*HEX_SIZE*0.4;
+      ctx.fillStyle = rgba(TOKENS.accent, alpha);
+      ctx.beginPath();
+      ctx.moveTo(hx, hy);
+      ctx.lineTo(hx - Math.cos(ang-Math.PI/6)*HEX_SIZE*0.25, hy - Math.sin(ang-Math.PI/6)*HEX_SIZE*0.25);
+      ctx.lineTo(hx - Math.cos(ang+Math.PI/6)*HEX_SIZE*0.25, hy - Math.sin(ang+Math.PI/6)*HEX_SIZE*0.25);
+      ctx.closePath(); ctx.fill();
+      // schedule a redraw to fade out
+      if(!window._fadeTimer){
+        window._fadeTimer = setTimeout(()=>{
+          window._fadeTimer = null;
+          if(lastMoveMarker && (Date.now()-lastMoveMarker.ts) > 2000) lastMoveMarker = null;
+          draw();
+        }, 200);
+      }
+    }else{
+      lastMoveMarker = null;
+    }
+  }
+}
+
+function drawUnit(u){
+  const p = hexCenter(u.col, u.row);
+  const isMine = u.owner === myPlayer;
+  const lvl = u.placement_level >= 0 ? u.placement_level : 0;
+  const body = levelColorSolid(lvl);
+  const revealed = u.revealed;
+  const isHidden = u.type === 'unknown';
+  const outer = revealed ? TOKENS.revealed : TOKENS.concealed;
+  const inner = u.is_corrupted ? TOKENS.corrupted : null;
+
+  drawHex(p.x, p.y, HEX_SIZE*0.82, body, null);
+  drawHex(p.x, p.y, HEX_SIZE*0.82, null, outer, 3);
+  if(inner){ drawHex(p.x, p.y, HEX_SIZE*0.65, null, inner, 2); }
+
+  const flagColor = isMine ? TOKENS.p1flag : TOKENS.p2flag;
+  ctx.fillStyle = flagColor;
+  ctx.beginPath();
+  const fx = p.x - HEX_SIZE*0.55, fy = p.y - HEX_SIZE*0.55;
+  ctx.moveTo(fx, fy);
+  ctx.lineTo(fx + HEX_SIZE*0.35, fy);
+  ctx.lineTo(fx, fy + HEX_SIZE*0.35);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = TOKENS.bg; ctx.textAlign='center'; ctx.textBaseline='middle';
+  if(isHidden){
+    ctx.font = `bold ${HEX_SIZE*0.8}px sans-serif`;
+    ctx.fillText('?', p.x, p.y);
+  }else{
+    ctx.font = `bold ${HEX_SIZE*0.42}px sans-serif`;
+    ctx.fillText(u.abbr || '?', p.x, p.y - HEX_SIZE*0.10);
+    ctx.font = `bold ${HEX_SIZE*0.35}px monospace`;
+    ctx.fillStyle = u.is_corrupted ? TOKENS.corrupted : TOKENS.bg;
+    ctx.fillText(String(u.attack), p.x, p.y + HEX_SIZE*0.22);
+  }
+}
+
+// ============================================================
+// MOUSE / TOUCH – pixel→hex mapping
+// ============================================================
+function pixelToHex(mx, my){
+  // Try every cell; small grid, cost is fine
+  if(!gameState) return null;
+  let best = null, bestD = HEX_SIZE*1.2;
+  gameState.board.forEach(cell=>{
+    const p = hexCenter(cell.col, cell.row);
+    const d = Math.hypot(mx-p.x, my-p.y);
+    if(d < bestD){ bestD = d; best = cell; }
+  });
+  return best;
+}
+
+canvas.addEventListener('click', async (e)=>{
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const cell = pixelToHex(mx, my);
+  if(!cell) return;
+  await handleClick(cell);
+});
+canvas.addEventListener('mousemove', (e)=>{
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const cell = pixelToHex(mx, my);
+  if(cell){
+    const u = findUnitAt(cell.col, cell.row);
+    if(u && u.id !== hoverUnitId){
+      hoverUnitId = u.id;
+      renderInfoPanel(u);
+    }
+  }
+});
+canvas.addEventListener('mouseleave', ()=>{
+  // On hover-out, restore info panel to the selected unit (or hint)
+  hoverUnitId = null;
+  const sel = getSelectedUnit();
+  if(sel) renderInfoPanel(sel);
+  else {
+    const ic = document.getElementById('info-content');
+    ic.classList.add('hint');
+    ic.innerHTML = '<div class="hint">Najeď na jednotku pro detail</div>';
+  }
+});
+
+async function handleClick(cell){
+  if(!gameState) return;
+  if(gameState.phase === 'placement' && !gameState.placement_confirmed[myPlayer]){
+    await handlePlacementClick(cell);
+  }else if(gameState.phase === 'battle'){
+    await handleBattleClick(cell);
+  }
+}
+
+async function handlePlacementClick(cell){
+  const existing = findUnitAt(cell.col, cell.row);
+  if(existing && existing.owner === myPlayer){
+    // Right-click-like: unplace (we use double-click later; for now: unplace if clicked with no pickerType)
+    if(!pickerType){
+      await api('POST', `/api/game/${currentGameId}/unplace`, {unit_id: existing.id});
+      refreshState();
+    }else{
+      // Replace: unplace then place new type
+      await api('POST', `/api/game/${currentGameId}/unplace`, {unit_id: existing.id});
+      const r = await api('POST', `/api/game/${currentGameId}/place`, {utype:pickerType, col:cell.col, row:cell.row});
+      if(!r.ok) toast('Chyba: '+r.error);
+      refreshState();
+    }
+    return;
+  }
+  if(!pickerType){ toast('Vyber typ jednotky vpravo'); return; }
+  const r = await api('POST', `/api/game/${currentGameId}/place`, {utype:pickerType, col:cell.col, row:cell.row});
+  if(!r.ok){ toast('Nelze umístit: '+translateErr(r.error)); return; }
+  refreshState();
+}
+
+async function handleBattleClick(cell){
+  if(gameState.current_player !== myPlayer){ return; }
+  const clickedUnit = findUnitAt(cell.col, cell.row);
+
+  // If clicked on own unit → select and also auto-pick a sensible default intent
+  if(clickedUnit && clickedUnit.owner === myPlayer){
+    setSelectedUnit(clickedUnit);
+    // Default intent: attack if possible, else special, else move
+    const aa = gameState.available_actions || {};
+    const hasAtt = (aa.attacks||[]).some(x=>x.unit_id===clickedUnit.id);
+    const hasSp  = (aa.specials||[]).some(x=>x.unit_id===clickedUnit.id);
+    const hasMv  = (aa.moves||[]).some(x=>x.unit_id===clickedUnit.id);
+    if(hasAtt) setIntent('attack');
+    else if(hasSp) setIntent('special');
+    else if(hasMv) setIntent('move');
+    updateUI();
+    draw();
+    return;
+  }
+
+  const sel = getSelectedUnit();
+  if(!sel) return;
+  const aa = gameState.available_actions || {};
+
+  if(intent === 'move'){
+    const mv = (aa.moves||[]).find(x=>x.unit_id===sel.id);
+    if(mv && mv.targets.some(t=>t.col===cell.col && t.row===cell.row)){
+      await api('POST', `/api/game/${currentGameId}/move`,
+        {unit_id:sel.id, col:cell.col, row:cell.row});
+      setSelectedUnit(null);
+      refreshState();
+    }
+    return;
+  }
+  if(intent === 'attack'){
+    if(!clickedUnit){ toast('Vyber nepřátelskou jednotku'); return; }
+    const at = (aa.attacks||[]).find(x=>x.unit_id===sel.id);
+    if(at && at.targets.some(t=>t.unit_id===clickedUnit.id)){
+      const r = await api('POST', `/api/game/${currentGameId}/attack`,
+        {attacker_id:sel.id, target_id:clickedUnit.id});
+      if(r.ok && r.wasted) toast('Zmařený tah – '+translateWaste(r.events));
+      setSelectedUnit(null);
+      refreshState();
+    }else toast('Tento cíl není v dosahu');
+    return;
+  }
+  if(intent === 'special'){
+    const sp = (aa.specials||[]).find(x=>x.unit_id===sel.id);
+    if(!sp){ toast('Žádné speciály'); return; }
+    const candidate = clickedUnit ? sp.actions.find(a=>a.target_id===clickedUnit.id) : null;
+    if(candidate){
+      const r = await api('POST', `/api/game/${currentGameId}/special`,
+        {unit_id:sel.id, action:candidate.action, target_id:candidate.target_id});
+      if(r.ok && r.events && r.events.length){
+        const ev = r.events[0];
+        if(ev.type === 'weaken_wasted') toast('Zmařený tah – cíl už na minimu');
+      }
+      setSelectedUnit(null);
+      refreshState();
+    }
+  }
+}
+
+function translateErr(code){
+  const m = {
+    max_count_reached:'vyčerpaný max počet jednotek',
+    special_cap_reached:'max speciálů v tomto levelu',
+    artillery_level0_only:'dělostřelecká baterie jen na L0',
+    one_terminator_per_level:'1 Terminátor na level',
+    not_your_zone:'cizí zóna',
+    hex_occupied:'pole je obsazené',
+    hexes_not_filled:'neobsazená pole',
+  };
+  return m[code] || code;
+}
+function translateWaste(events){
+  if(!events || !events.length) return '';
+  const e = events[0];
+  if(e.reason === 'invalid_category') return 'nemůžeš zaútočit na tento typ';
+  return '';
+}
+
+function findUnitAt(col, row){
+  const all = [...(gameState.my_units||[]), ...(gameState.enemy_units||[])];
+  return all.find(u=>u.placed && u.alive && u.col===col && u.row===row);
+}
+
+// ============================================================
+// INFO PANEL
+// ============================================================
+function renderInfoPanel(u){
+  const el = document.getElementById('info-content');
+  if(!u || u.type === 'unknown'){
+    el.classList.remove('hint');
+    el.innerHTML = `
+      <div class="unit-name"><span class="flag" style="background:${u ? (u.owner===myPlayer?'#2e86de':'#c0392b') : '#555'}"></span>
+        Neznámá jednotka</div>
+      <div class="desc">Soupeřova zahalená jednotka. Odhalíš ji průzkumným dronem nebo bojem.</div>
+    `;
+    return;
+  }
+  const d = UNIT_DEFS_CLIENT[u.type] || {name:u.type, desc:''};
+  const lvl = u.placement_level>=0 ? `L${u.placement_level}` : '—';
+  const revealHtml = u.revealed
+    ? '<span class="reveal-pill rev">Odhalena</span>'
+    : '<span class="reveal-pill hid">Zahalena</span>';
+  const corr = u.is_corrupted ? '<span class="reveal-pill" style="background:#c0392b;color:#fff">Koruptor</span>' : '';
+  const flagColor = u.owner===myPlayer ? '#2e86de' : '#c0392b';
+
+  el.classList.remove('hint');
+  el.innerHTML = `
+    <div class="unit-name"><span class="flag" style="background:${flagColor}"></span>${d.name} <small style="color:var(--text-dim)">(${lvl})</small></div>
+    <div style="margin-bottom:6px">${revealHtml} ${corr}</div>
+    <div class="stat"><span class="lbl">Síla</span><span class="val ${u.is_corrupted?'mod-red':''}">${u.attack}</span></div>
+    <div class="stat"><span class="lbl">Pohyb</span><span class="val">${u.movement}</span></div>
+    ${u.effective_range ? `<div class="stat"><span class="lbl">Dosah speciálu</span><span class="val">${u.effective_range}</span></div>`:''}
+    <div class="stat"><span class="lbl">Kategorie</span><span class="val">${u.category}</span></div>
+    <div class="desc">${d.desc}</div>
+  `;
+}
+
+// ============================================================
+// FORMATIONS MANAGER SCREEN
+// ============================================================
+let formsGameId = null;  // ephemeral "hotseat" game used purely for placement UI
+async function openFormations(){
+  // Create a throwaway hotseat game — we'll only use its placement board
+  const r = await api('POST','/api/game/new', {mode:'hotseat'});
+  if(!r.ok){ toast('Nelze otevřít editor formací: '+r.error); return; }
+  formsGameId = r.game_id;
+  currentGameId = formsGameId;
+  myPlayer = 1;
+  show('game-screen');  // reuse game-screen for the board
+  document.getElementById('phase-badge').textContent = 'EDITOR FORMACÍ';
+  document.getElementById('turn-banner').textContent = '(nic se nehraje, jen ukládáš rozestavení)';
+  document.getElementById('action-bar').innerHTML = `
+    <button class="btn ghost" onclick="clearPlacement()">🗑 Vymazat</button>
+    <button class="btn ghost" onclick="randomPlace()">🎲 Náhodně</button>
+    <div style="flex:1"></div>
+    <input id="inline-name" type="text" placeholder="Název (12)" maxlength="12" style="width:120px">
+    <select id="inline-slot"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+    <button class="btn primary" onclick="saveFormationsInline()">💾 Uložit</button>
+    <button class="btn" onclick="exitFormations()">← Lobby</button>
+  `;
+  resizeCanvas();
+  startPolling();
+}
+async function saveFormationsInline(){
+  const name = document.getElementById('inline-name').value.trim();
+  const slot = parseInt(document.getElementById('inline-slot').value);
+  if(!name){ toast('Vyplň název'); return; }
+  if(name.length>12){ toast('Max 12 znaků'); return; }
+  const units = gameState.my_units.filter(u=>u.placed).map(u=>({utype:u.type,col:u.col,row:u.row}));
+  const r = await api('POST','/api/presets',{slot, name, units});
+  if(r.ok){ toast('Formace uložena do slotu '+slot); exitFormations(); }
+  else toast('Chyba: '+r.error);
+}
+function exitFormations(){
+  formsGameId = null;
+  exitGame();
+}
+function closeFormations(){ exitFormations(); }
+
+// ============================================================
+// REPLAYS
+// ============================================================
+let replayData = null;
+let replayStep = 0;
+let replayPlayTimer = null;
+let replaySpeed = 1;
+async function openReplays(){
+  show('replay-screen');
+  const r = await api('GET','/api/replays?mine=true');
+  const list = document.getElementById('replay-list');
+  list.innerHTML = '';
+  if(!r.ok || !r.replays.length){
+    list.innerHTML = '<div class="list-row meta">žádné nahrávky</div>';
+    return;
+  }
+  r.replays.forEach(rep=>{
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    const w = rep.winner === 1 ? rep.player1_label : (rep.winner===2 ? rep.player2_label : 'remíza');
+    row.innerHTML = `<span>${rep.player1_label} vs ${rep.player2_label}<br><span class="meta">🏆 ${w} / ${rep.turns}t / ${new Date(rep.finished_at*1000).toLocaleString()}</span></span>`;
+    const b = document.createElement('button');
+    b.className = 'btn'; b.textContent = 'Přehrát';
+    b.onclick = ()=>loadReplay(rep.id);
+    row.appendChild(b);
+    list.appendChild(row);
+  });
+}
+let replayAsPlayer = 1;
+async function loadReplay(id){
+  const r = await api('GET','/api/replays/'+id);
+  if(!r.ok){ toast('Nelze načíst'); return; }
+  replayData = r.replay;
+  replayStep = 0;
+  replayAsPlayer = 1;
+  myPlayer = 1;
+  document.getElementById('replay-seek').max = replayData.actions.length;
+  document.getElementById('replay-title').textContent =
+    `${replayData.player1_label} vs ${replayData.player2_label}`;
+  await fetchSnapshot();
+  resizeCanvas();
+  updateReplayUI();
+}
+
+async function fetchSnapshot(){
+  if(!replayData) return;
+  const r = await api('GET',
+    `/api/replays/${replayData.id}/snapshot?at=${replayStep}&as_player=${replayAsPlayer}`);
+  if(!r.ok){ toast('Chyba snapshotu: '+r.error); return; }
+  gameState = r.state;
+  // In the replay viewer we show ALL units un-fogged, already done server-side.
+  draw();
+}
+function buildClientBoard(){
+  // Reconstruct board cells from engine-side topology (17 rows diamond)
+  const mountains = new Set(['4,7','12,7','4,9','12,9']);
+  const board = [];
+  for(let row=0;row<17;row++){
+    const half = Math.min(row, 16-row);
+    const shrink = (row>=7 && row<=9) ? 1 : 0;
+    let width, start;
+    if(row%2===1){ width = 2*half+2-2*shrink; start = 8-half-1+shrink; }
+    else{ width = 2*half+1-2*shrink; start = 8-half+shrink; }
+    const zone = getZone(row);
+    for(let i=0;i<width;i++){
+      const c = start+i;
+      board.push({col:c,row,zone_type:zone[0],zone_player:zone[1],zone_level:zone[2],is_mountain:mountains.has(`${c},${row}`)});
+    }
+  }
+  return board;
+}
+function getZone(row){
+  if(row===0) return ['citadel',1,0];
+  if(row<=2) return ['level',1,0];
+  if(row<=4) return ['level',1,1];
+  if(row<=6) return ['level',1,2];
+  if(row<=9) return ['battlefield',0,-1];
+  if(row<=11) return ['level',2,2];
+  if(row<=13) return ['level',2,1];
+  if(row<=15) return ['level',2,0];
+  return ['citadel',2,0];
+}
+let _scrubTimer = null;
+function replayScrub(v){
+  replayStep = parseInt(v);
+  updateReplayUI();
+  // Debounce snapshot fetching while dragging
+  clearTimeout(_scrubTimer);
+  _scrubTimer = setTimeout(fetchSnapshot, 60);
+}
+async function replaySeek(delta){
+  replayStep = Math.max(0, Math.min(replayData?.actions.length||0, replayStep+delta));
+  document.getElementById('replay-seek').value = replayStep;
+  updateReplayUI();
+  await fetchSnapshot();
+}
+function replayPlay(){
+  if(replayPlayTimer){
+    clearInterval(replayPlayTimer); replayPlayTimer=null;
+    document.getElementById('replay-play-btn').textContent='▶'; return;
+  }
+  document.getElementById('replay-play-btn').textContent='⏸';
+  replayPlayTimer = setInterval(async ()=>{
+    if(!replayData || replayStep >= replayData.actions.length){ replayPlay(); return; }
+    replayStep++;
+    document.getElementById('replay-seek').value = replayStep;
+    updateReplayUI();
+    await fetchSnapshot();
+  }, 800/replaySpeed);
+}
+function updateReplayUI(){
+  if(!replayData) return;
+  const evEl = document.getElementById('replay-events');
+  evEl.innerHTML = '';
+  replayData.actions.slice(0, replayStep).slice(-30).reverse().forEach(a=>{
+    const d = document.createElement('div');
+    d.className = 'entry';
+    const desc = describeReplayAction(a);
+    d.innerHTML = `<span class="t">T${a.turn}p${a.player||a.current_player||'?'}</span>${desc}`;
+    evEl.appendChild(d);
+  });
+  document.getElementById('replay-info').textContent = `${replayStep} / ${replayData.actions.length}`;
+}
+function describeReplayAction(a){
+  const t = a.type;
+  if(t === 'move') return `pohyb na (${a.to[0]},${a.to[1]})`;
+  if(t === 'attack') return `útok ${(a.events||[]).map(e=>e.type).join(', ')}`;
+  if(t === 'attack_wasted') return 'zmařený útok';
+  if(t === 'special') return `spec: ${a.action}`;
+  if(t === 'pass') return 'pas';
+  if(t === 'turn_timeout') return 'vypršený čas';
+  return t;
+}
+function closeReplay(){
+  if(replayPlayTimer){ clearInterval(replayPlayTimer); replayPlayTimer=null; }
+  show('lobby-screen');
+  loadLobby();
+}
+
+// ============================================================
+// LEADERBOARD / MANUAL
+// ============================================================
+async function openLeaderboard(){
+  const r = await api('GET','/api/leaderboard');
+  const lines = (r.leaderboard||[]).slice(0,20).map((x,i)=>`${i+1}. ${x.username} – ELO ${x.elo} (${x.wins}W/${x.losses}L)`).join('\n');
+  alert('Žebříček:\n\n'+(lines||'(žádná data)'));
+}
+function showManual(){ show('manual-screen'); fillManualUnits(); }
+function exitManual(){ show('lobby-screen'); }
+function fillManualUnits(){
+  const el = document.getElementById('manual-units-body');
+  el.innerHTML = '';
+  UNIT_ORDER.forEach(t=>{
+    const d = UNIT_DEFS_CLIENT[t];
+    const row = document.createElement('tr');
+    row.innerHTML = `<td><b>${d.abbr}</b></td><td>${d.name}</td><td>${d.atk}</td><td>${d.mv}</td><td style="font-size:11px">${d.desc}</td>`;
+    el.appendChild(row);
+  });
+}
+
+// ============================================================
+// ADMIN
+// ============================================================
+function openAdmin(){ show('admin-screen'); if(adminToken) loadAdminPanel(); }
+function exitAdmin(){ show('lobby-screen'); }
+async function adminLogin(){
+  const p = document.getElementById('admin-pass').value;
+  const r = await adminApi('POST','/api/admin/login',{password:p});
+  const err = document.getElementById('admin-err');
+  if(!r.ok){ err.textContent = 'Špatné heslo'; return; }
+  adminToken = r.admin_token;
+  localStorage.setItem(ADMIN_TOKEN_KEY, adminToken);
+  err.textContent='';
+  loadAdminPanel();
+}
+async function loadAdminPanel(){
+  const r = await adminApi('GET','/api/admin/unit_defs');
+  if(!r.ok){ document.getElementById('admin-err').textContent='Token vypršel'; adminToken=''; localStorage.removeItem(ADMIN_TOKEN_KEY); return; }
+  document.getElementById('admin-login').style.display='none';
+  document.getElementById('admin-panel').style.display='block';
+  const tb = document.getElementById('admin-units-body');
+  tb.innerHTML = '';
+  const ov = r.overrides || {};
+  Object.entries(r.unit_defs).forEach(([t, d])=>{
+    const o = ov[t] || {};
+    const has = key => o[key] !== undefined;
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><b>${t}</b></td>
+      <td>${d.name_cs}</td>
+      <td>${d.category}</td>
+      <td class="${has('base_attack')?'overridden':''}"><input type="number" data-u="${t}" data-k="base_attack" value="${has('base_attack')?o.base_attack:d.base_attack}"></td>
+      <td class="${has('movement')?'overridden':''}"><input type="number" data-u="${t}" data-k="movement" value="${has('movement')?o.movement:d.movement}"></td>
+      <td class="${has('base_range')?'overridden':''}"><input type="number" data-u="${t}" data-k="base_range" value="${has('base_range')?o.base_range:(d.base_range??'')}"></td>
+      <td class="${has('max_count')?'overridden':''}"><input type="number" data-u="${t}" data-k="max_count" value="${has('max_count')?o.max_count:d.max_count}"></td>
+      <td>
+        <button class="btn ghost" onclick="saveOverrideRow('${t}')">Uložit</button>
+        <button class="btn ghost" onclick="clearOverrideRow('${t}')">✕</button>
+      </td>`;
+    tb.appendChild(row);
+  });
+}
+async function saveOverrideRow(utype){
+  const inputs = document.querySelectorAll(`input[data-u="${utype}"]`);
+  const payload = {utype};
+  inputs.forEach(i=>{ const v = i.value.trim(); if(v!=='') payload[i.dataset.k]=parseInt(v); });
+  const r = await adminApi('POST','/api/admin/unit_override', payload);
+  if(r.ok) toast('Uloženo'); else toast('Chyba');
+  loadAdminPanel();
+}
+async function clearOverrideRow(utype){
+  await adminApi('DELETE','/api/admin/unit_override/'+utype);
+  toast('Zrušeno');
+  loadAdminPanel();
+}
+async function adminChangePasswordDialog(){
+  const p = prompt('Nové admin heslo (min 6 znaků):');
+  if(!p) return;
+  const r = await adminApi('POST','/api/admin/change_password',{new_password:p});
+  if(r.ok) toast('Heslo změněno'); else toast('Chyba: '+r.error);
+}
+
+// ============================================================
+// BOT ACCOUNTS
+// ============================================================
+function openBotAccounts(){ show('bots-screen'); loadBots(); }
+function exitBots(){ show('lobby-screen'); }
+async function loadBots(){
+  const r = await api('GET','/api/bot-accounts');
+  const el = document.getElementById('bots-list');
+  el.innerHTML = '';
+  if(!r.ok || !r.bots.length){ el.innerHTML = '<div class="list-row meta">žádní boti</div>'; }
+  else r.bots.forEach(b=>{
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `<span><b>${b.bot_name}</b><br>
+      <span class="meta">ELO ${b.elo} / ${b.wins}W/${b.losses}L / klíč: <code style="font-size:10px">${b.api_key}</code></span></span>`;
+    const db = document.createElement('button');
+    db.className='btn danger';db.textContent='Smazat';
+    db.onclick=async()=>{ if(confirm('Smazat bota '+b.bot_name+'?')){ await api('DELETE','/api/bot-accounts/'+b.id); loadBots(); } };
+    row.appendChild(db);
+    el.appendChild(row);
+  });
+  // Bot leaderboard
+  const lb = await api('GET','/api/bot-leaderboard');
+  const lel = document.getElementById('bot-lb');
+  lel.innerHTML = '';
+  (lb.leaderboard||[]).slice(0,10).forEach((x,i)=>{
+    const row = document.createElement('div'); row.className='list-row';
+    row.innerHTML = `<span>${i+1}. <b>${x.bot_name}</b></span><span>ELO ${x.elo} (${x.wins}W/${x.losses}L)</span>`;
+    lel.appendChild(row);
+  });
+}
+async function createBot(){
+  const n = document.getElementById('new-bot-name').value.trim();
+  const err = document.getElementById('new-bot-err');
+  err.textContent='';
+  if(!n){ err.textContent='Vyplň jméno'; return; }
+  const r = await api('POST','/api/bot-accounts',{bot_name:n, can_play_humans:true});
+  if(!r.ok){ err.textContent='Chyba: '+r.error; return; }
+  document.getElementById('new-bot-name').value='';
+  loadBots();
+  alert('Bot vytvořen!\nAPI klíč: '+r.api_key+'\n\nULOŽ SI JEJ — v DB zůstává, ale nejde znovu zobrazit uložený jinde.');
+}
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('active');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('active'), 3000);
+}
 
 // ============================================================
 // INIT
 // ============================================================
-if(TOKEN){
-    apiFetch('/api/auth/me',null,'GET').then(r=>r.ok?showScreen('lobby'):showScreen('auth')).catch(()=>showScreen('auth'));
-} else showScreen('auth');
+document.getElementById('auth-user').addEventListener('keydown',e=>{ if(e.key==='Enter')doAuth(); });
+document.getElementById('auth-pass').addEventListener('keydown',e=>{ if(e.key==='Enter')doAuth(); });
+autoLogin();
 </script>
 </body>
 </html>

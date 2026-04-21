@@ -31,10 +31,11 @@ Capture the enemy **citadel** with a ground unit. First player to do so wins.
 | Unit | Hexes per turn |
 |------|---------------|
 | Most ground/special | 1 |
-| Scout | 2 |
-| Helicopter | 2 |
-| Fighter | 4 |
-| Mine, Artillery | 0 (cannot move) |
+| Scout | 3 |
+| Tank, Paratrooper | 2 |
+| Fighter | 2 (may path through own units) |
+| Helicopter | 1 |
+| Mine field, Artillery | 0 (cannot move) |
 
 - Ground units **cannot** cross mountains
 - Air units **ignore** mountains

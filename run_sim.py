@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """
 AI vs AI simulation runner for Marshal & Spy.
+
 Usage:
-    python3 run_sim.py                  # single game
-    python3 run_sim.py -n 10            # 10 games
-    python3 run_sim.py -n 50 --quiet    # 50 games, summary only
-    python3 run_sim.py --max-turns 200  # custom turn limit
+    python3 run_sim.py                        # single game, verbose
+    python3 run_sim.py -n 10                  # 10 games
+    python3 run_sim.py -n 50 --quiet          # 50 games, summary only
+    python3 run_sim.py --max-turns 200        # custom turn limit
+    python3 run_sim.py -n 100 --parallel 4    # 4 worker processes
+
+External HTTP AIs should talk to the server's /api/bot/* endpoints directly;
+this script only drives the built-in AI for regression / balance testing.
 """
 
 import argparse
@@ -13,6 +18,7 @@ import json
 import os
 import time
 from datetime import datetime
+from multiprocessing import Pool
 
 from game_engine import GameState
 from ai_engine import AI
@@ -67,10 +73,11 @@ def run_game(max_turns=300, verbose=True):
         result = ai.do_turn(gs)
         new_logs = gs.log[log_before:]
 
+        # AI.do_turn returns a dict with "kind" (move/attack/special/pass)
         turn_entry = {
             "turn": gs.turn,
             "player": cp,
-            "action": result.get("action", "none"),
+            "action": result.get("kind") or result.get("action") or "pass",
             "details": {k: v for k, v in result.items() if k != "ai_log"},
             "ai_decision": result.get("ai_log"),
             "events": [l["msg"] for l in new_logs],
@@ -118,40 +125,53 @@ def save_game_log(log):
         json.dump(log, f, ensure_ascii=False, indent=1)
 
 
+def _worker(args_tuple):
+    """Pool-worker wrapper: unpack args, run one game, return summary."""
+    max_turns, quiet = args_tuple
+    log = run_game(max_turns=max_turns, verbose=not quiet)
+    return log["result"]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Marshal & Spy – AI Simulation")
     parser.add_argument("-n", "--num-games", type=int, default=1, help="Number of games")
     parser.add_argument("--max-turns", type=int, default=300, help="Max turns per game")
     parser.add_argument("--quiet", action="store_true", help="Summary only")
+    parser.add_argument("--parallel", type=int, default=1, help="Parallel worker processes")
     args = parser.parse_args()
 
     results = {1: 0, 2: 0, "draw": 0}
     total_turns = 0
     t0 = time.time()
 
-    for i in range(args.num_games):
-        verbose = not args.quiet
-        if verbose and args.num_games > 1:
-            print(f"\n=== Game {i + 1}/{args.num_games} ===")
+    quiet = args.quiet or args.parallel > 1  # parallel output would be tangled
 
-        log = run_game(max_turns=args.max_turns, verbose=verbose)
-        winner = log["result"]["winner"]
-        if winner:
-            results[winner] += 1
-        else:
-            results["draw"] += 1
-        total_turns += log["result"]["turns_played"]
+    if args.parallel > 1:
+        with Pool(args.parallel) as pool:
+            summaries = pool.map(_worker, [(args.max_turns, quiet)] * args.num_games)
+    else:
+        summaries = []
+        for i in range(args.num_games):
+            if not quiet and args.num_games > 1:
+                print(f"\n=== Game {i + 1}/{args.num_games} ===")
+            log = run_game(max_turns=args.max_turns, verbose=not quiet)
+            summaries.append(log["result"])
+
+    for r in summaries:
+        w = r["winner"]
+        if w: results[w] += 1
+        else: results["draw"] += 1
+        total_turns += r["turns_played"]
 
     elapsed = time.time() - t0
-
     print(f"\n{'='*40}")
-    print(f"SIMULATION SUMMARY ({args.num_games} games)")
+    print(f"SIMULATION SUMMARY ({args.num_games} games, parallel={args.parallel})")
     print(f"{'='*40}")
     print(f"Player 1 wins: {results[1]} ({results[1]/args.num_games*100:.0f}%)")
     print(f"Player 2 wins: {results[2]} ({results[2]/args.num_games*100:.0f}%)")
     print(f"Draws:         {results['draw']}")
     print(f"Avg turns:     {total_turns / args.num_games:.1f}")
-    print(f"Time:          {elapsed:.1f}s ({elapsed/args.num_games:.2f}s/game)")
+    print(f"Time:          {elapsed:.1f}s ({elapsed/args.num_games:.2f}s/game wall)")
     print(f"Logs saved to: {LOG_DIR}/")
 
 

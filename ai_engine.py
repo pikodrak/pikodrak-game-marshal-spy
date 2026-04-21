@@ -1,12 +1,30 @@
 """
-AI Engine – scoring-based AI opponent for Maršál a Špión.
+AI Engine v1.0 – scoring-based AI for Maršál a Špión.
+
+Rewritten for v1.0 ruleset:
+- All hexes must be filled (placement strategy)
+- New unit set (hacker added, assassin + old mine removed)
+- New mechanics: attack drone threshold, artillery special, etc.
+
+Strategy tiers (kept simple; can be extended later):
+  Placement:
+    - L0 (9 hexes): defenders – mostly engineers + 2 mine_fields + arty at L0
+    - L1 (17 hexes): mid-field – privates, scouts, supports
+    - L2 (25 hexes): strike force – tanks, paratroopers, helicopters, terminator
+    - Specials distributed per-level cap (2+L)
+  Battle:
+    - Score each legal action for current player, pick highest
+    - Ground rushers advance toward enemy citadel
+    - Specials act when a clear win is available (drone<4, arty, corruptor, reveal)
+    - Fighters only engage when air targets available
+    - Fallback: pass turn
 """
 
 import random
+from typing import List, Dict, Tuple, Optional
 from game_engine import (
-    GameState, Unit, UNIT_DEFS, CITADELS, ZONE_LIMITS,
-    hex_distance, hex_neighbors, is_valid_hex, get_zone,
-    RANGED_UNITS, NUM_ROWS, row_start, row_width,
+    GameState, Unit, CITADELS,
+    hex_distance, hex_neighbors, level_hexes,
 )
 
 
@@ -14,85 +32,85 @@ class AI:
     def __init__(self, player: int = 2):
         self.player = player
         self.enemy = 3 - player
-        self.decision_log = []  # detailed log of every decision
+        self.decision_log: List[dict] = []
 
-    # ========== PLACEMENT ==========
+    # ============================================================
+    # PLACEMENT
+    # ============================================================
 
     def do_placement(self, gs: GameState):
-        units = gs._player_units(self.player, placed=False)
-        if not units:
+        """Fill all of this player's level hexes with a balanced composition."""
+        if gs.phase != "placement":
             return
+        # Start from scratch (idempotent if called multiple times)
+        gs.clear_placement(self.player)
 
-        level_assignments = {0: [], 1: [], 2: []}
-        assigned = set()
+        hexes_by_level: Dict[int, List[Tuple[int, int]]] = {0: [], 1: [], 2: []}
+        for h in level_hexes(self.player):
+            hexes_by_level[gs.board[h]["zone_level"]].append(h)
 
-        def can_assign(u, level):
-            lim = ZONE_LIMITS[level]
-            current = level_assignments[level]
-            if u.is_special and sum(1 for x in current if x.is_special) >= lim["special"]:
-                return False
-            if u.type in ("assassin", "terminator") and any(x.type == u.type for x in current):
-                return False
-            if u.type == "artillery" and level != 0:
-                return False
-            return True
+        # P1 front rows are high numbers (closer to battlefield); P2 opposite
+        front_sign = 1 if self.player == 1 else -1
+        for lvl in (0, 1, 2):
+            hexes_by_level[lvl].sort(key=lambda h: (front_sign * h[1], h[0]))
 
-        def do_assign(u, level):
-            level_assignments[level].append(u)
-            assigned.add(u.id)
+        # Composition plan: (utype, target_level, count)
+        # Total must fit 9+17+25 = 51 hexes across L0/L1/L2
+        # Specials per level: 2+L = 2/3/4 (max 9)
+        plan = [
+            # L0 – 9 hexes: 6 engineers + 1 arty + 2 mines
+            ("engineer",    0, 6),
+            ("artillery",   0, 1),
+            ("mine_field",  0, 2),
+            # L1 – 17 hexes: 10 privates + 4 scouts + 3 specials
+            ("private",     1, 10),
+            ("scout",       1, 4),
+            ("recon_drone", 1, 1),
+            ("jammer",      1, 1),
+            ("mine_field",  1, 1),
+            # L2 – 25 hexes: 5 para + 4 tanks + 1 term + 1 hacker + 4 heli + 4 fighters + 2 engineer + 4 specials
+            ("paratrooper", 2, 5),
+            ("tank",        2, 4),
+            ("terminator",  2, 1),
+            ("hacker",      2, 1),
+            ("helicopter",  2, 4),
+            ("fighter",     2, 4),
+            ("engineer",    2, 2),
+            ("attack_drone", 2, 1),
+            ("trainer",     2, 1),
+            ("corruptor",   2, 1),
+            ("mine_field",  2, 1),
+        ]
 
-        # Phase 1: Place special units first (they have strict slot limits)
-        specials = [u for u in units if u.is_special]
-        # Artillery must go to level 0
-        for u in specials:
-            if u.type == "artillery" and u.id not in assigned:
-                if can_assign(u, 0):
-                    do_assign(u, 0)
-        # Other specials: prefer spreading across levels
-        for u in specials:
-            if u.id not in assigned:
-                for lvl in [0, 1, 2]:
-                    if can_assign(u, lvl):
-                        do_assign(u, lvl)
+        occupied: Dict[int, int] = {0: 0, 1: 0, 2: 0}
+
+        for utype, lvl, count in plan:
+            placed = 0
+            while placed < count and occupied[lvl] < len(hexes_by_level[lvl]):
+                h = hexes_by_level[lvl][occupied[lvl]]
+                if gs.unit_at(h[0], h[1]):
+                    occupied[lvl] += 1
+                    continue
+                res = gs.place_new_unit(self.player, utype, h[0], h[1])
+                if res["ok"]:
+                    occupied[lvl] += 1
+                    placed += 1
+                else:
+                    # Try next hex in this level
+                    occupied[lvl] += 1
+
+        # Fallback: any remaining hexes get an engineer or private (respecting caps)
+        for lvl in (0, 1, 2):
+            for h in hexes_by_level[lvl]:
+                if gs.unit_at(h[0], h[1]):
+                    continue
+                for fallback_type in ("engineer", "private", "scout", "paratrooper", "tank"):
+                    if gs.place_new_unit(self.player, fallback_type, h[0], h[1])["ok"]:
                         break
 
-        # Phase 2: Place combat units – strongest to level 2 for max bonus
-        combats = sorted([u for u in units if not u.is_special],
-                         key=lambda u: u.base_attack, reverse=True)
-        for u in combats:
-            if u.id not in assigned:
-                for lvl in [2, 1, 0]:
-                    if can_assign(u, lvl):
-                        do_assign(u, lvl)
-                        break
-
-        # Place units on the board
-        for level, level_units in level_assignments.items():
-            available_hexes = self._get_level_hexes(level)
-            random.shuffle(available_hexes)
-            for i, u in enumerate(level_units):
-                if i < len(available_hexes):
-                    col, row = available_hexes[i]
-                    gs.place_unit(self.player, u.id, col, row)
-
-    def _get_level_hexes(self, level: int) -> list:
-        hexes = []
-        for row_idx in range(NUM_ROWS):
-            zt, zp, zl = get_zone(row_idx)
-            if zp != self.player or zt != "level":
-                continue
-            if zl != level:
-                continue
-            s = row_start(row_idx)
-            w = row_width(row_idx)
-            for i in range(w):
-                col = s + i
-                from game_engine import MOUNTAINS
-                if (col, row_idx) not in MOUNTAINS:
-                    hexes.append((col, row_idx))
-        return hexes
-
-    # ========== BATTLE ==========
+    # ============================================================
+    # BATTLE
+    # ============================================================
 
     def do_turn(self, gs: GameState) -> dict:
         if gs.phase != "battle" or gs.current_player != self.player:
@@ -100,231 +118,263 @@ class AI:
 
         turn_log = {
             "turn": gs.turn, "player": self.player,
-            "my_units": [], "known_enemies": [], "unknown_enemies": 0,
             "options_evaluated": 0, "top_options": [], "chosen": None,
         }
 
         my_units = gs._player_units(self.player, placed=True)
         enemy_citadel = CITADELS[self.enemy]
 
-        # Log what AI sees
-        for u in my_units:
-            turn_log["my_units"].append({
-                "id": u.id, "type": u.type, "attack": u.attack,
-                "pos": [u.col, u.row], "revealed": u.revealed,
-            })
-        for e in gs._player_units(self.enemy, placed=True):
-            if e.revealed:
-                turn_log["known_enemies"].append({
-                    "id": e.id, "type": e.type, "attack": e.attack,
-                    "pos": [e.col, e.row],
-                })
-            else:
-                turn_log["unknown_enemies"] += 1
-
-        best_score = -999
-        best_action = None
-        all_options = []
+        best_score = -999.0
+        best_action: Optional[dict] = None
+        all_options: List[dict] = []
 
         for u in my_units:
-            # Score movement options
+            # Moves
             if u.movement > 0:
-                reachable = gs.get_reachable(u)
-                for (c, r) in reachable:
-                    score = self._score_move(gs, u, c, r, enemy_citadel)
-                    opt = {"action": "move", "unit_id": u.id, "unit": u.type,
-                           "col": c, "row": r, "score": round(score, 2)}
+                for (c, r) in gs.get_reachable(u):
+                    s = self._score_move(gs, u, c, r, enemy_citadel)
+                    opt = {"kind": "move", "unit_id": u.id, "utype": u.type,
+                           "col": c, "row": r, "score": round(s, 2)}
                     all_options.append(opt)
-                    if score > best_score:
-                        best_score = score
-                        best_action = {"action": "move", "unit_id": u.id, "col": c, "row": r}
+                    if s > best_score:
+                        best_score = s
+                        best_action = {"kind": "move", "unit_id": u.id, "col": c, "row": r}
 
-            # Score attack options
-            targets = gs.get_attack_targets(u)
-            for t in targets:
-                score = self._score_attack(gs, u, t)
-                tgt = gs.unit(t["unit_id"])
-                opt = {"action": "attack", "unit_id": u.id, "unit": u.type,
-                       "target": tgt.type if tgt and tgt.revealed else "?",
-                       "target_atk": tgt.attack if tgt and tgt.revealed else "?",
-                       "score": round(score, 2)}
+            # Standard attacks
+            for t in gs.get_attack_targets(u):
+                s = self._score_attack(gs, u, t)
+                opt = {"kind": "attack", "unit_id": u.id, "utype": u.type,
+                       "target_id": t["unit_id"], "score": round(s, 2)}
                 all_options.append(opt)
-                if score > best_score:
-                    best_score = score
-                    best_action = {"action": "attack", "unit_id": u.id, "target_id": t["unit_id"]}
+                if s > best_score:
+                    best_score = s
+                    best_action = {"kind": "attack", "unit_id": u.id,
+                                   "target_id": t["unit_id"]}
 
-            # Score special actions
-            specials = gs.get_special_actions(u)
-            for s in specials:
-                score = self._score_special(gs, u, s)
-                opt = {"action": "special", "unit_id": u.id, "unit": u.type,
-                       "special": s["action"], "target_id": s["target_id"],
-                       "score": round(score, 2)}
+            # Specials
+            for a in gs.get_special_actions(u):
+                s = self._score_special(gs, u, a)
+                opt = {"kind": "special", "unit_id": u.id, "utype": u.type,
+                       "action": a["action"], "target_id": a["target_id"],
+                       "score": round(s, 2)}
                 all_options.append(opt)
-                if score > best_score:
-                    best_score = score
-                    best_action = {"action": "special", "unit_id": u.id,
-                                   "special_action": s["action"], "target_id": s["target_id"]}
+                if s > best_score:
+                    best_score = s
+                    best_action = {"kind": "special", "unit_id": u.id,
+                                   "action": a["action"],
+                                   "target_id": a["target_id"]}
 
         turn_log["options_evaluated"] = len(all_options)
-        # Keep top 5 options for the log
         all_options.sort(key=lambda x: x["score"], reverse=True)
         turn_log["top_options"] = all_options[:5]
 
-        # Execute best action or pass
         if best_action is None or best_score < -10:
             gs.pass_turn(self.player)
-            turn_log["chosen"] = {"action": "pass", "reason": "no good options" if all_options else "no options"}
+            turn_log["chosen"] = {"kind": "pass"}
             self.decision_log.append(turn_log)
             return {"action": "pass", "ai_log": turn_log}
 
         turn_log["chosen"] = {**best_action, "score": round(best_score, 2)}
 
-        if best_action["action"] == "move":
+        if best_action["kind"] == "move":
             gs.move_unit(self.player, best_action["unit_id"],
                          best_action["col"], best_action["row"])
-        elif best_action["action"] == "attack":
+        elif best_action["kind"] == "attack":
             gs.attack_unit(self.player, best_action["unit_id"],
                            best_action["target_id"])
-        elif best_action["action"] == "special":
+        elif best_action["kind"] == "special":
             gs.do_special(self.player, best_action["unit_id"],
-                          best_action["special_action"], best_action["target_id"])
+                          best_action["action"], best_action["target_id"])
 
         self.decision_log.append(turn_log)
         return {**best_action, "ai_log": turn_log}
 
+    # ---------- SCORING ----------
+
     def _score_move(self, gs: GameState, u: Unit, col: int, row: int,
-                    enemy_citadel: tuple) -> float:
+                    enemy_citadel: Tuple[int, int]) -> float:
         score = 0.0
-        current_dist = hex_distance(u.col, u.row, enemy_citadel[0], enemy_citadel[1])
+        cur_dist = hex_distance(u.col, u.row, enemy_citadel[0], enemy_citadel[1])
         new_dist = hex_distance(col, row, enemy_citadel[0], enemy_citadel[1])
+        advance = cur_dist - new_dist
 
-        # Reward moving toward enemy citadel (ground units)
-        if u.category == "ground":
-            score += (current_dist - new_dist) * 3.0
-            # Bonus for strong units moving forward
-            score += u.attack * 0.3
-            # Big bonus for reaching citadel
-            if (col, row) == enemy_citadel:
-                score += 100
-
-        # Reward positioning for special units
-        if u.type == "recon_drone":
-            # Move toward unrevealed enemies
-            enemies = [e for e in gs._player_units(self.enemy, placed=True) if not e.revealed]
-            if enemies:
-                closest = min(hex_distance(col, row, e.col, e.row) for e in enemies)
-                score += max(0, 5 - closest) * 2
-
-        if u.type in ("trainer", "corruptor"):
-            # Stay near friendly combat units
-            allies = [a for a in gs._player_units(self.player, placed=True)
-                      if a.category in ("ground", "air") and a.id != u.id]
-            if allies:
-                closest = min(hex_distance(col, row, a.col, a.row) for a in allies)
-                score += max(0, 3 - closest) * 1.5
-
-        # Avoid moving into danger (adjacent to strong revealed enemies)
+        # Late-game urgency: after turn 10, ground rushers get a big push
+        late_game = max(0, gs.turn - 10) * 0.6  # grows with stalemate length
+        # Big bonus for landing adjacent to an enemy unit (sets up attack next turn)
+        adj_enemy_bonus = 0
         for nc, nr in hex_neighbors(col, row):
-            e = gs.unit_at(nc, nr)
-            if e and e.owner == self.enemy and e.revealed:
-                if e.attack > u.attack:
-                    score -= 5
-                elif e.attack <= u.attack:
-                    score += 1  # Opportunity
+            occ = gs.unit_at(nc, nr)
+            if occ and occ.owner == self.enemy:
+                adj_enemy_bonus = 3
+                break
+        # Defense: strong pull-back when an enemy is near our citadel
+        my_cit = CITADELS[self.player]
+        nearest_enemy_to_cit = min(
+            (hex_distance(e.col, e.row, my_cit[0], my_cit[1])
+             for e in gs._player_units(self.enemy, placed=True)),
+            default=99)
+        # If enemy within 5 hexes of our citadel, bias movement TOWARD citadel
+        defense_pull = 0
+        if nearest_enemy_to_cit <= 5:
+            dist_to_own_cit = hex_distance(col, row, my_cit[0], my_cit[1])
+            # Reward being close to our citadel
+            defense_pull = max(0, 5 - dist_to_own_cit) * 2.0
 
-        # Defend citadel
-        my_citadel = CITADELS[self.player]
-        dist_to_own = hex_distance(col, row, my_citadel[0], my_citadel[1])
-        if dist_to_own <= 2 and u.category == "ground":
-            # Some units should stay back
-            nearby_enemies = sum(1 for e in gs._player_units(self.enemy, placed=True)
-                                 if hex_distance(e.col, e.row, my_citadel[0], my_citadel[1]) <= 4)
-            if nearby_enemies > 0:
-                score += 2  # Reward staying near citadel when enemies are close
+        if u.category == "ground":
+            if u.type in ("terminator", "tank"):
+                # Moderate Terminator bonus (too high → predictable rush into Hacker)
+                term_push = 2 if u.type == "terminator" else 0
+                score += advance * (12 + late_game) + u.attack * 0.6 + adj_enemy_bonus + term_push
+                # Tank can also defend citadel
+                if u.type == "tank":
+                    score += defense_pull * 0.5
+            elif u.type in ("paratrooper", "scout"):
+                score += advance * (8 + late_game) + adj_enemy_bonus
+            elif u.type == "private":
+                score += advance * (6 + late_game * 0.6) + adj_enemy_bonus
+                # Cheap defender – pull toward citadel when under threat
+                score += defense_pull
+            elif u.type == "engineer":
+                score += advance * 2
+                score += defense_pull * 0.8
+            elif u.type == "hacker":
+                # Hunt terminator if revealed
+                terms = [e for e in gs._player_units(self.enemy, placed=True)
+                         if e.type == "terminator" and e.revealed]
+                if terms:
+                    d = min(hex_distance(col, row, t.col, t.row) for t in terms)
+                    score += max(0, 8 - d) * 2
+                score += advance * 3
+            if (col, row) == enemy_citadel:
+                score += 1000
 
-        # Small random factor to break ties
-        score += random.uniform(-0.5, 0.5)
+        elif u.category == "air":
+            # Air can't win; harass known enemies
+            enemies = [e for e in gs._player_units(self.enemy, placed=True) if e.revealed]
+            if enemies:
+                d = min(hex_distance(col, row, e.col, e.row) for e in enemies)
+                score += max(0, 4 - d) * 1.5
+            score += advance * 1.5
+
+        elif u.category == "special":
+            if u.type == "recon_drone":
+                unknown = [e for e in gs._player_units(self.enemy, placed=True)
+                           if not e.revealed]
+                if unknown:
+                    d = min(hex_distance(col, row, e.col, e.row) for e in unknown)
+                    score += max(0, 4 - d) * 1.5
+                score += advance * 0.8
+            elif u.type in ("trainer", "corruptor"):
+                allies = [a for a in gs._player_units(self.player, placed=True)
+                          if a.category in ("ground", "air") and a.id != u.id]
+                if allies:
+                    d = min(hex_distance(col, row, a.col, a.row) for a in allies)
+                    score += max(0, 3 - d) * 1.2
+                score += advance * 0.5
+            elif u.type == "jammer":
+                allies = [a for a in gs._player_units(self.player, placed=True)
+                          if not a.revealed and a.id != u.id]
+                if allies:
+                    d = min(hex_distance(col, row, a.col, a.row) for a in allies)
+                    score += max(0, 3 - d) * 1.0
+            elif u.type == "attack_drone":
+                targets = [e for e in gs._player_units(self.enemy, placed=True)
+                           if e.revealed and e.attack < 4]
+                if targets:
+                    d = min(hex_distance(col, row, e.col, e.row) for e in targets)
+                    score += max(0, u.effective_range() + 1 - d) * 2
+
+        score += random.uniform(-0.3, 0.3)
         return score
 
-    def _score_attack(self, gs: GameState, u: Unit, target: dict) -> float:
-        score = 0.0
-        tgt = gs.unit(target["unit_id"])
+    def _score_attack(self, gs: GameState, u: Unit, tgt_info: dict) -> float:
+        tgt = gs.unit(tgt_info["unit_id"])
         if not tgt:
             return -100
+        my_cit = CITADELS[self.player]
+        threat_to_cit_d = hex_distance(tgt.col, tgt.row, my_cit[0], my_cit[1])
+        threat_to_cit = threat_to_cit_d <= 3
+        # MUCH stronger urgency for anything actually near our citadel
+        citadel_defense_bonus = max(0, 7 - threat_to_cit_d) * 3
 
-        at_type = target["attack_type"]
+        if u.type == "hacker" and tgt.type == "terminator":
+            return 50
+        if u.type == "fighter" and tgt.category != "air":
+            return -30
+        if tgt.type == "mine_field":
+            return 18 if u.type == "engineer" else -30
 
-        if at_type == "ranged":
-            # Ranged is safe for attacker
-            if u.attack >= tgt.attack if tgt.revealed else u.attack >= 3:
-                score += 15 + u.attack
+        # Late-game eagerness – encourages attrition when stalling
+        late = max(0, gs.turn - 10) * 0.5
+
+        if tgt.revealed:
+            if u.attack > tgt.attack:
+                # Balanced between under-attack (game 7) and over-attack (game 8)
+                s = 25 + tgt.attack * 2 + late + citadel_defense_bonus
+                if threat_to_cit: s += 10
+                return s
+            elif u.attack == tgt.attack:
+                return (12 if u.attack <= 3 else 4) + late * 0.4
             else:
-                score += 5  # Still safe, reveals target
-            if tgt.revealed:
-                score += tgt.attack * 2  # Higher value targets
+                return -6 + late * 0.2
+        # Unknown enemy
+        base = 6 if u.attack >= 6 else (3 if u.attack >= 4 else -2)
+        return base + late * 0.3
 
-        elif at_type == "melee_air":
-            # Helicopter vs ground - safe for helicopter
-            if tgt.revealed:
-                if u.attack >= tgt.attack:
-                    score += 20 + tgt.attack * 2
-                else:
-                    score += 2  # Safe but no kill
-            else:
-                score += 8  # Unknown target, but safe
-
-        else:
-            # Melee combat
-            if tgt.revealed:
-                if u.attack > tgt.attack:
-                    score += 20 + tgt.attack * 2
-                elif u.attack == tgt.attack:
-                    score += 5 if u.attack <= 3 else -2  # Trade cheap units
-                else:
-                    score -= 10  # Would die
-
-                # Special: attacking assassin is good (it dies to anyone)
-                if tgt.type == "assassin" and u.category == "ground":
-                    score += 30
-            else:
-                # Unknown target - risky
-                if u.attack >= 5:
-                    score += 5  # Strong unit likely wins
-                elif u.attack >= 3:
-                    score += 1  # Might win, reveals target
-                else:
-                    score -= 3  # Weak unit, risky
-
-            # Don't sacrifice unique high-value units blindly
-            if u.type in ("terminator", "assassin") and not tgt.revealed:
-                score -= 10
-
-        score += random.uniform(-0.5, 0.5)
-        return score
-
-    def _score_special(self, gs: GameState, u: Unit, action: dict) -> float:
-        score = 0.0
+    def _score_special(self, gs: GameState, _u: Unit, action: dict) -> float:
+        my_cit = CITADELS[self.player]
         act = action["action"]
 
         if act == "reveal":
-            score += 12  # Information is valuable
-
-        elif act == "boost":
             tgt = gs.unit(action["target_id"])
-            if tgt and tgt.category in ("ground", "air"):
-                score += 8 + tgt.attack * 0.5  # Boost stronger units more
+            if not tgt:
+                return 0
+            d = hex_distance(tgt.col, tgt.row, my_cit[0], my_cit[1])
+            return 18 if d <= 3 else (10 if d <= 6 else 5)
 
-        elif act == "weaken":
+        if act == "strike":
+            # Attack drone
             tgt = gs.unit(action["target_id"])
-            if tgt:
-                score += 10 + tgt.attack * 0.5
+            if not tgt:
+                return 0
+            if tgt.revealed:
+                return 25 if tgt.attack < 4 else -5  # miss = drone revealed
+            return 8  # gamble
 
-        elif act == "conceal":
-            score += 7  # Re-hiding is useful
+        if act == "boost":
+            tgt = gs.unit(action["target_id"])
+            if not tgt:
+                return 0
+            enemy_cit = CITADELS[self.enemy]
+            d = hex_distance(tgt.col, tgt.row, enemy_cit[0], enemy_cit[1])
+            base = 8 if d <= 4 else (4 if d <= 7 else 1)
+            # Fade faster – AI ended game 1 with 22 specials vs 100 moves; re-balance
+            base -= max(0, gs.turn - 12) * 0.3
+            return base
 
-        elif act == "defuse":
-            score += 15  # Clearing mines is very useful
+        if act == "convert_hacker":
+            # Only if enemy terminator is actually a revealed threat
+            terms = [e for e in gs._player_units(self.enemy, placed=True)
+                     if e.type == "terminator" and e.revealed]
+            return 14 if terms else 1  # barely pursue if no visible terminator
 
-        score += random.uniform(-0.5, 0.5)
-        return score
+        if act == "weaken":
+            tgt = gs.unit(action["target_id"])
+            if not tgt:
+                return 0
+            d = hex_distance(tgt.col, tgt.row, my_cit[0], my_cit[1])
+            return 15 if d <= 3 else 9
+
+        if act == "conceal":
+            tgt = gs.unit(action["target_id"])
+            if tgt and tgt.type in ("terminator", "tank", "hacker"):
+                return 14
+            return 6
+
+        if act == "artillery_fire":
+            tgt = gs.unit(action["target_id"])
+            if not tgt:
+                return 0
+            return 22 + (tgt.attack * 0.5)
+
+        return 0

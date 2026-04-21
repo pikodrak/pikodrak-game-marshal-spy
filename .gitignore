@@ -2,7 +2,11 @@ __pycache__/
 *.pyc
 *.pyo
 game03.db
+game03.db-wal
+game03.db-shm
 game_logs/
 *.log
 .env
 node_modules/
+admin_password.txt
+agent/state/

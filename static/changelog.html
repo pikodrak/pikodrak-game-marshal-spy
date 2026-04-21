@@ -2,6 +2,121 @@
 <style>body{background:#07080f;color:#c8d6e5;font-family:monospace;padding:20px;max-width:800px;margin:0 auto}h1{color:#00e5ff}h2{color:#ffd700;border-bottom:1px solid #1a2744;padding-bottom:4px}h3{color:#00ff88}li{margin:2px 0}</style>
 </head><body>
 <h1>CHANGELOG – Marshal &amp; Spy</h1>
+<h2>2026-04-21 – v1.0 (WIP) – Complete ruleset overhaul (engine + AI + API skeleton)</h2>
+<h3>Breaking ruleset changes (v0.x saves rejected)</h3>
+<li>Assassin removed; Hacker added (auto-kills Terminator in melee)</li>
+<li>Mine replaced by Minové pole – destroys any ground attacker except Engineer</li>
+<li>Attack drone: threshold-kill (ATK &lt; 4); miss = drone revealed + target temp-revealed</li>
+<li>Artillery now acts via special action (range 2, kills ground/special)</li>
+<li>Fighter: air only; non-air attacks → wasted turn (Zmařený tah)</li>
+<li>Helicopter movement 1, attacks ground/air/special</li>
+<li>Terminator ATK 8+level; Engineer/Hacker no level scaling</li>
+<li>Trainer: boost +1 ATK max 2× per target; may convert ATK&gt;3 ground into Hacker (2×/game)</li>
+<li>Corruptor: -1 ATK or range (floor 1; wasted if at floor); no reveals on either side</li>
+<li>Ranges: recon/attack drone/corruptor/jammer = 1+level; trainer 1; artillery 2</li>
+<li>Placement: all hexes must be filled; special cap 2+level per level; 1 Terminator/level</li>
+<li>Unit counts are player-chosen maxima (Ženista 8, Vojín 10, Průzkumník 6, Výsadkář 5, Tank 4, Terminátor 1, Hacker 1, Vrtulník 4, Stíhač 4, Minové pole 8)</li>
+<li>First battle turn goes to whoever confirmed placement first</li>
+<li>Fighter may path through own units (can't stop); no pathing through enemies</li>
+<li>Citadel capture allowed by ground and special units (air still excluded)</li>
+<li>Inactivity flow: 2-min idle → opponent may request Zrychlení hry → 60-sec force-pass</li>
+<h3>Engine / internals</h3>
+<li>Engine version bumped to 1.0; old v0.x saves rejected cleanly</li>
+<li>Units gain boost_count, corrupt_attack, corrupt_range, temp_revealed_ticks_left, converted_from</li>
+<li>Every action recorded in GameState.replay_actions for future replay UI</li>
+<li>New engine API: place_new_unit, clear_placement, apply_preset, confirm_placement(force), request_speedup, check_speedup_expired, force_end_placement</li>
+<h3>AI</h3>
+<li>AI rewritten for new ruleset; placement fills all 51 hexes with balanced composition</li>
+<li>Scoring tuned for hacker/terminator, drone threshold, artillery, fighter, corruptor</li>
+<h3>Server API</h3>
+<li>POST /api/game/{id}/place now takes {utype, col, row}</li>
+<li>POST /api/game/{id}/clear_placement, /apply_preset, /speedup – new endpoints</li>
+<li>POST /api/game/{id}/confirm accepts {force: bool}</li>
+<h3>DB schema additions (Phase 3)</h3>
+<li>unit_presets – up to 5 formations per user (12-char name + unit list)</li>
+<li>admin_config – bcrypt-style hashed admin password; auto-generated on first boot into admin_password.txt (chmod 600, gitignored)</li>
+<li>bot_accounts – bot identities with unique api_key, separate bot ELO, can_play_humans toggle</li>
+<li>game_replays – finished-game archive with initial state + ordered action list</li>
+<li>Helpers in auth.py for presets, admin, bots, replays</li>
+<h3>Phase 4 – Server endpoints backing the new DB</h3>
+<li>GET/POST/DELETE /api/presets – CRUD for 5 saved formations</li>
+<li>POST /api/admin/login, /api/admin/unit_defs, /api/admin/unit_override – admin login + unit stat overrides</li>
+<li>GET /api/replays, /api/replays/{id} – list and load saved replays</li>
+<li>Every finished game is archived (labels, winner, turns, full action log, battle-start snapshot)</li>
+<h3>Phase 9 – Bot API + docs</h3>
+<li>/api/bot-accounts – user creates bot accounts with unique X-API-Key</li>
+<li>/api/bot-leaderboard – separate bot ELO ranking</li>
+<li>POST /api/bot/games with opponent: ai|queue|human – bot creates game; 30-sec fallback to AI</li>
+<li>Full bot action surface: place, clear_placement, apply_preset, random_place, confirm, move, attack, special, pass, replay</li>
+<li>API.md rewritten for v1.0 – 12 sections, JSON examples, minimal Python bot loop</li>
+<li>Engine snapshots battle_start_state for compact replay storage</li>
+<h3>AI tuning round 1</h3>
+<li>Lowered Trainer boost base score with late-game decay past turn 15</li>
+<li>Lowered "convert to Hacker" score when no terminator is visible (18 → 1)</li>
+<li>Ground rushers get late-game advance multiplier + adjacent-to-enemy bonus</li>
+<li>5-game smoke: 3 P1 / 1 P2 / 1 draw (was 0/0/5 before)</li>
+<h3>Data migration (v0.x → v1.0)</h3>
+<li>Removed 21 incompatible active_games rows (engine_version != 1.0)</li>
+<li>users, player_stats, saved_games kept untouched</li>
+<li>v0.x saved_games remain but return save_incompatible_v1_engine on load</li>
+<h3>Phase 5–8 – Frontend v1.0 (symbolic graphics, Karlos will reskin)</h3>
+<li>static/index.html rewritten from scratch for v1.0 API (single-file SPA)</li>
+<li>CSS design tokens at top of style block – tweak to reskin whole app</li>
+<li>Screens: auth, lobby, game (placement + battle), formations editor, replay viewer, admin, bot accounts, manual</li>
+<li>Placement UI: click hex → pick type from 4-column grid (used/max counter), click placed unit to unplace/replace; cyan highlight on valid hexes; L0-only Artillery auto-enforced</li>
+<li>Formation loader: 5 slots, one-click load from /api/presets</li>
+<li>Battle UI: right panel = info top + log bottom; action bar Move/Attack/Special/Pass/Speedup</li>
+<li>Unit on hex: body = level color (pale blue/green/orange), outer border = reveal (green/yellow), inner red ring if corrupted, triangular flag top-left (blue=you / red=opponent), abbr+attack text, hidden enemies = "?"</li>
+<li>Mobile: no right panel, horizontal swipe bar of units above board, no info panel on phones</li>
+<li>"Jsi na tahu / Tah soupeře" banner, Zrychlení hry button + countdown badge</li>
+<li>Replay viewer: list + seek bar + 1×/2×/4× + step/play/pause (v1 shows events list; board not yet re-applied frame-by-frame)</li>
+<li>Admin: password login (1h token), editable table of all 16 unit types (base_attack, movement, base_range, max_count), yellow highlight on overrides, per-row save/clear</li>
+<li>Bot accounts: list + create (api_key shown once) + delete; bot leaderboard; link to /static/API.md</li>
+<h3>Polish pass (same day)</h3>
+<li>Canvas now reads every --var from :root (level colors, reveal/concealed borders, corrupted inner ring, player flags, zone tints, accents) – reskin by changing CSS variables</li>
+<li>Selected unit tracked by ID across 2-second polls (doesn't blink off)</li>
+<li>Intent buttons (Pohyb/Útok/Speciál) show primary highlight; click own unit auto-picks default intent</li>
+<li>Info panel stays on selected unit after hover-out</li>
+<li>Replay viewer now re-paints board: new GET /api/replays/{id}/snapshot?at=N rebuilds state by applying N actions; client fetches on scrub/step/play</li>
+<li>Replay storage slimmer: placement actions stripped (initial snapshot has them)</li>
+<li>AI tuning round 2: late-game attrition bias; 8-game smoke = 5 P1 / 3 P2 / 0 draws, avg 92 turns (from 170)</li>
+<li>run_sim.py --parallel N: multiprocessing pool; 8 games @ 4 workers in 28s (was 86s)</li>
+<h3>Movement buff (Karlos decision 2026-04-21 afternoon)</h3>
+<li>Scout movement 2 → 3 (přejde bitevní pole v jednom tahu)</li>
+<li>Tank movement 1 → 2</li>
+<li>Výsadkář movement 1 → 2</li>
+<li>30-game smoke: 14 P1 / 16 P2 / 0 draws, avg 71 tahů (bylo 86) – o 17% svižnější</li>
+<h3>LLM-agent readiness (Claude / any external LLM)</h3>
+<li>GET /api/bot/rules (no auth) – 9 kB JSON with full game description, unit defs, event glossary, workflow</li>
+<li>rationale field on every bot action – stored in replay_actions for post-mortem analysis</li>
+<li>Enriched game_logs/{id}.json – replay_actions, battle_start_state, alive_by_type, hacker_conversions, engine_version, bots map</li>
+<li>API.md §13 – complete Claude agent template: system prompt + Python loop using anthropic SDK + prompt-caching tip</li>
+<h3>Known limits (for Karlos's polish pass)</h3>
+<li>Graphics are symbolic (colored hexes + abbr); CSS tokens ready for reskin</li>
+<li>No combat animations yet (hit flash on kill)</li>
+<li>Artillery possibly too strong (195 killů / 50 her při 2 kusech)</li>
+<h2>2026-04-11 – v0.10 – Unit Info, Combat Feedback &amp; AI Overhaul</h2>
+<h3>Unit info tooltip</h3>
+<li>Right-click (PC) or long-press (mobile) on any unit shows info popup</li>
+<li>Shows unit name, type, ATK, MOV, and special ability description</li>
+<li>Enemy hidden units show "Unknown" with hint to use Recon Drone</li>
+<h3>Combat result toast</h3>
+<li>After each action, new combat log entries appear as toast messages</li>
+<li>Player now sees what happened when a unit dies (e.g. mine, lost combat)</li>
+<h3>Movement trail improvements</h3>
+<li>Hexagon outline now shown at BOTH origin and destination of last move</li>
+<li>Arrowhead in the middle of the dashed trail line showing direction of movement</li>
+<h3>AI overhaul (v2)</h3>
+<li>Strategic placement: rush force → L2, defense → L0, support → L1</li>
+<li>Role-based movement: rushers advance aggressively, support follows</li>
+<li>Fixed ranged attack waste (was 91% miss rate)</li>
+<li>Anti-clustering prevents traffic jams at battlefield</li>
+<li>Path-clearing attack bonus near enemy citadel</li>
+<li>Scout rush defense: private blocks citadel approach</li>
+<li>Helicopter won't loop-attack unhittable targets</li>
+<li>Assassin protected: advances behind allies at L1</li>
+<li>Mines randomized (no more predictable positions)</li>
+<li>P1 45%, P2 50%, Draw 5% (was P1 70%, P2 30%)</li>
 <h2>2026-04-10 – v0.9 – Narrowed Battlefield</h2>
 <h3>Board change</h3>
 <li>Battlefield rows (7-9) shrunk by 1 hex on each side</li>
