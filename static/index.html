@@ -5,27 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Maršál & Špión – v1.0</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
 /* ============================================================
-   DESIGN TOKENS – tweak these to reskin the whole UI
+   DESIGN TOKENS – cyberpunk theme (inherited from v0.8)
+   Tweak these to reskin the whole UI
    ============================================================ */
 :root{
   /* backgrounds */
-  --bg:            #0a0d16;
-  --panel:         #12182a;
-  --panel-2:       #0d1220;
-  --border:        #2a3450;
-  --border-dim:    #1a2033;
+  --bg:            #07080f;
+  --panel:         #0c1021;
+  --panel-2:       #0a0e1a;
+  --border:        #1a2744;
+  --border-dim:    #151d30;
 
   /* text */
-  --text:          #d9e2ec;
-  --text-dim:      #6c7b93;
-  --text-mute:     #4a5670;
+  --text:          #c8d6e5;
+  --text-dim:      #5a6a7a;
+  --text-mute:     #3a4a5a;
 
   /* accents */
-  --accent:        #4fd1ff;    /* primary */
-  --accent-2:      #ff5470;    /* danger */
-  --gold:          #ffd466;
-  --green:         #4ade80;
+  --accent:        #00e5ff;    /* primary cyan */
+  --accent-2:      #ff3d3d;    /* danger red */
+  --gold:          #ffd700;
+  --green:         #00ff88;
 
   /* level body colors (per rules) */
   --level-0-body:  #aed6f1;    /* pale blue */
@@ -38,17 +40,18 @@
   --corrupted:     #c0392b;    /* red inner ring */
 
   /* player flags */
-  --p1-flag:       #2e86de;    /* blue (you) */
-  --p2-flag:       #c0392b;    /* red (opponent) */
+  --p1-flag:       #00e5ff;    /* cyan (you) */
+  --p2-flag:       #ff3d3d;    /* red (opponent) */
 
   /* board zones */
-  --zone-citadel:  #3a2a1a;
-  --zone-battlefield: #1a1f2e;
-  --zone-mountain: #353f5a;
+  --zone-citadel:  #2a1e10;
+  --zone-battlefield: #0d1225;
+  --zone-mountain: #2a3450;
 
   /* fonts */
-  --font:          'Segoe UI', 'Roboto', system-ui, sans-serif;
-  --font-mono:     'Consolas', 'Monaco', monospace;
+  --font:          'Share Tech Mono', 'Consolas', monospace;
+  --font-mono:     'Share Tech Mono', 'Consolas', monospace;
+  --font-head:     'Orbitron', 'Share Tech Mono', monospace;
 
   /* dims */
   --panel-w:       320px;      /* right panel width on PC */
@@ -77,9 +80,17 @@ input[type=text],input[type=password],input[type=number]{
 }
 input:focus{border-color:var(--accent)}
 
-h1{font-size:22px;font-weight:700;letter-spacing:2px;color:var(--accent)}
-h2{font-size:15px;font-weight:600;color:var(--accent);margin-bottom:10px;letter-spacing:1px}
-h3{font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+h1{font-family:var(--font-head);font-size:24px;font-weight:700;letter-spacing:4px;color:var(--accent);text-transform:uppercase}
+h2{font-family:var(--font-head);font-size:14px;font-weight:700;color:var(--accent);margin-bottom:12px;letter-spacing:2px;text-transform:uppercase}
+h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
+
+/* Cyberpunk glow line on panels */
+.lobby-card::before, .auth-box::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  pointer-events:none;
+}
+.lobby-card, .auth-box{position:relative}
 
 .screen{display:none;width:100%;height:100%;overflow:auto}
 .screen.active{display:flex}
@@ -91,9 +102,9 @@ h3{font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase
    AUTH
    ============================================================ */
 #auth-screen{align-items:center;justify-content:center}
-.auth-box{width:360px;max-width:92%;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:30px 26px;text-align:center}
-.auth-box h1{margin-bottom:6px}
-.auth-box .sub{color:var(--text-dim);font-size:11px;letter-spacing:3px;text-transform:uppercase;margin-bottom:22px}
+.auth-box{width:380px;max-width:92%;background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:40px 32px;text-align:center}
+.auth-box h1{margin-bottom:4px}
+.auth-box .sub{color:var(--text-dim);font-size:11px;letter-spacing:3px;text-transform:uppercase;margin-bottom:24px}
 .auth-box input{margin:5px 0}
 .auth-box .btn{width:100%;margin-top:10px}
 .auth-tabs{display:flex;gap:4px;margin-bottom:16px}
@@ -124,8 +135,8 @@ h3{font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase
    GAME SCREEN
    ============================================================ */
 #game-screen{flex-direction:column;align-items:stretch}
-#top-bar{height:var(--bar-h);display:flex;align-items:center;padding:0 10px;gap:12px;background:var(--panel);border-bottom:1px solid var(--border);font-size:12px}
-#top-bar .phase{color:var(--accent);font-weight:600;letter-spacing:1px}
+#top-bar{height:var(--bar-h);display:flex;align-items:center;padding:0 10px;gap:12px;background:var(--panel);border-bottom:1px solid var(--border);font-size:11px}
+#top-bar .phase{font-family:var(--font-head);color:var(--accent);font-weight:700;letter-spacing:2px;text-transform:uppercase}
 #top-bar .turn-banner{flex:1;text-align:center;font-weight:600}
 #top-bar .turn-banner.your-turn{color:var(--green)}
 #top-bar .turn-banner.opp-turn{color:var(--accent-2)}
@@ -140,7 +151,7 @@ h3{font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase
 #right-panel{width:var(--panel-w);min-width:var(--panel-w);background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column}
 #right-panel .panel-half{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 #right-panel .panel-half+.panel-half{border-top:1px solid var(--border)}
-.panel-title{padding:8px 12px;font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:1.5px;border-bottom:1px solid var(--border-dim);font-weight:600}
+.panel-title{padding:8px 12px;font-family:var(--font-head);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:2px;border-bottom:1px solid var(--border-dim);font-weight:700}
 .panel-body{flex:1;overflow-y:auto;padding:10px 12px}
 
 /* info panel */
@@ -591,6 +602,17 @@ let pickerType = null;       // utype when placing
 let intent = 'move';         // 'move'|'attack'|'special' in battle
 let hoverUnitId = null;      // for info panel (transient)
 let lastMoveMarker = null;   // {fromC, fromR, toC, toR, ts} – drawn briefly
+let activeAnims = [];        // unit-movement animations (slide between hexes)
+
+function getActiveAnim(uid){
+  const now = Date.now();
+  return activeAnims.find(a => a.unit_id === uid && now - a.start_ts < a.duration);
+}
+
+function pruneAnims(){
+  const now = Date.now();
+  activeAnims = activeAnims.filter(a => now - a.start_ts < a.duration);
+}
 let dragPanOffset = {x:0, y:0};
 let scale = 1;
 
@@ -778,7 +800,8 @@ async function refreshState(){
   const prev = gameState;
   gameState = r;
   myPlayer = r.my_player;
-  // Detect last move by comparing positions of units that exist in both snapshots
+  // Detect moves by comparing positions of units that exist in both snapshots.
+  // Kick off a slide animation for each moved unit and a fading trail arrow.
   if(prev){
     const prevById = {};
     [...(prev.my_units||[]), ...(prev.enemy_units||[])].forEach(u=>{prevById[u.id] = u;});
@@ -787,8 +810,14 @@ async function refreshState(){
       const p = prevById[u.id];
       if(!p || !u.alive || !u.placed) continue;
       if(p.col !== u.col || p.row !== u.row){
-        lastMoveMarker = {fromC:p.col, fromR:p.row, toC:u.col, toR:u.row, ts:Date.now()};
-        break;
+        const now = Date.now();
+        activeAnims.push({
+          unit_id: u.id,
+          from_col: p.col, from_row: p.row,
+          to_col:   u.col, to_row:   u.row,
+          start_ts: now, duration: 500,
+        });
+        lastMoveMarker = {fromC:p.col, fromR:p.row, toC:u.col, toR:u.row, ts: now};
       }
     }
   }
@@ -1055,8 +1084,11 @@ function hexNeighbors(c,r){
 function hexCenter(col, row){
   const h = HEX_SIZE;
   const w = Math.sqrt(3)*h;
+  // Flip board vertically so OWN territory is always at the bottom.
+  // Player 1's citadel (row 0) → bottom of screen; player 2's citadel (row 16) → bottom.
+  const viewRow = (myPlayer === 1) ? (16 - row) : row;
   const x = (col - 4) * w + (row%2===1 ? w/2 : 0);
-  const y = row * h * 1.5;
+  const y = viewRow * h * 1.5;
   return {x: x + boardOffset.x, y: y + boardOffset.y};
 }
 function drawHex(cx, cy, size, fill, stroke, strokeWidth=1){
@@ -1243,7 +1275,6 @@ function draw(){
       ctx.lineWidth = 3; ctx.setLineDash([6,4]);
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
       ctx.setLineDash([]);
-      // arrowhead
       const ang = Math.atan2(b.y-a.y, b.x-a.x);
       const hx = b.x - Math.cos(ang)*HEX_SIZE*0.4;
       const hy = b.y - Math.sin(ang)*HEX_SIZE*0.4;
@@ -1253,22 +1284,32 @@ function draw(){
       ctx.lineTo(hx - Math.cos(ang-Math.PI/6)*HEX_SIZE*0.25, hy - Math.sin(ang-Math.PI/6)*HEX_SIZE*0.25);
       ctx.lineTo(hx - Math.cos(ang+Math.PI/6)*HEX_SIZE*0.25, hy - Math.sin(ang+Math.PI/6)*HEX_SIZE*0.25);
       ctx.closePath(); ctx.fill();
-      // schedule a redraw to fade out
-      if(!window._fadeTimer){
-        window._fadeTimer = setTimeout(()=>{
-          window._fadeTimer = null;
-          if(lastMoveMarker && (Date.now()-lastMoveMarker.ts) > 2000) lastMoveMarker = null;
-          draw();
-        }, 200);
-      }
     }else{
       lastMoveMarker = null;
     }
   }
+
+  // Keep animating if any slide or trail is active
+  pruneAnims();
+  const trailActive = lastMoveMarker && (Date.now() - lastMoveMarker.ts) < 2000;
+  if(activeAnims.length > 0 || trailActive){
+    requestAnimationFrame(draw);
+  }
 }
 
 function drawUnit(u){
-  const p = hexCenter(u.col, u.row);
+  // Use animated position if unit is currently mid-animation
+  const anim = getActiveAnim(u.id);
+  let p;
+  if(anim){
+    const t = Math.min(1, (Date.now() - anim.start_ts) / anim.duration);
+    const ease = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;   // easeInOutQuad
+    const from = hexCenter(anim.from_col, anim.from_row);
+    const to   = hexCenter(anim.to_col,   anim.to_row);
+    p = { x: from.x + (to.x - from.x) * ease, y: from.y + (to.y - from.y) * ease };
+  } else {
+    p = hexCenter(u.col, u.row);
+  }
   const isMine = u.owner === myPlayer;
   const lvl = u.placement_level >= 0 ? u.placement_level : 0;
   const body = levelColorSolid(lvl);
@@ -1276,31 +1317,35 @@ function drawUnit(u){
   const isHidden = u.type === 'unknown';
   const outer = revealed ? TOKENS.revealed : TOKENS.concealed;
   const inner = u.is_corrupted ? TOKENS.corrupted : null;
+  const teamColor = isMine ? TOKENS.p1flag : TOKENS.p2flag;
 
+  // 1) Outermost TEAM ring — bold color, biggest visual cue
+  drawHex(p.x, p.y, HEX_SIZE*0.95, null, teamColor, 4);
+  // 2) Level-colored body
   drawHex(p.x, p.y, HEX_SIZE*0.82, body, null);
-  drawHex(p.x, p.y, HEX_SIZE*0.82, null, outer, 3);
-  if(inner){ drawHex(p.x, p.y, HEX_SIZE*0.65, null, inner, 2); }
+  // 3) Reveal state border (green = concealed, yellow = revealed)
+  drawHex(p.x, p.y, HEX_SIZE*0.82, null, outer, 2);
+  // 4) Red inner ring if under corruptor
+  if(inner){ drawHex(p.x, p.y, HEX_SIZE*0.62, null, inner, 2); }
 
-  const flagColor = isMine ? TOKENS.p1flag : TOKENS.p2flag;
-  ctx.fillStyle = flagColor;
-  ctx.beginPath();
-  const fx = p.x - HEX_SIZE*0.55, fy = p.y - HEX_SIZE*0.55;
-  ctx.moveTo(fx, fy);
-  ctx.lineTo(fx + HEX_SIZE*0.35, fy);
-  ctx.lineTo(fx, fy + HEX_SIZE*0.35);
-  ctx.closePath();
-  ctx.fill();
+  // 5) Team banner stripe at TOP of hex (extra redundancy for color-blind friendliness)
+  ctx.fillStyle = teamColor;
+  const bx = p.x - HEX_SIZE*0.45, by = p.y - HEX_SIZE*0.78;
+  ctx.fillRect(bx, by, HEX_SIZE*0.9, HEX_SIZE*0.22);
 
-  ctx.fillStyle = TOKENS.bg; ctx.textAlign='center'; ctx.textBaseline='middle';
+  // 6) Label + attack
+  ctx.textAlign='center'; ctx.textBaseline='middle';
   if(isHidden){
-    ctx.font = `bold ${HEX_SIZE*0.8}px sans-serif`;
-    ctx.fillText('?', p.x, p.y);
+    ctx.fillStyle = TOKENS.bg;
+    ctx.font = `bold ${HEX_SIZE*0.7}px sans-serif`;
+    ctx.fillText('?', p.x, p.y + HEX_SIZE*0.05);
   }else{
+    ctx.fillStyle = TOKENS.bg;
     ctx.font = `bold ${HEX_SIZE*0.42}px sans-serif`;
-    ctx.fillText(u.abbr || '?', p.x, p.y - HEX_SIZE*0.10);
-    ctx.font = `bold ${HEX_SIZE*0.35}px monospace`;
+    ctx.fillText(u.abbr || '?', p.x, p.y - HEX_SIZE*0.02);
+    ctx.font = `bold ${HEX_SIZE*0.34}px monospace`;
     ctx.fillStyle = u.is_corrupted ? TOKENS.corrupted : TOKENS.bg;
-    ctx.fillText(String(u.attack), p.x, p.y + HEX_SIZE*0.22);
+    ctx.fillText(String(u.attack), p.x, p.y + HEX_SIZE*0.30);
   }
 }
 
@@ -1363,8 +1408,10 @@ async function handleClick(cell){
 
 async function handlePlacementClick(cell){
   const existing = findUnitAt(cell.col, cell.row);
+  // Always update info panel for clicked unit
+  if(existing){ renderInfoPanel(existing); }
   if(existing && existing.owner === myPlayer){
-    // Right-click-like: unplace (we use double-click later; for now: unplace if clicked with no pickerType)
+    // No picker type selected → unplace
     if(!pickerType){
       await api('POST', `/api/game/${currentGameId}/unplace`, {unit_id: existing.id});
       refreshState();
@@ -1384,8 +1431,15 @@ async function handlePlacementClick(cell){
 }
 
 async function handleBattleClick(cell){
-  if(gameState.current_player !== myPlayer){ return; }
   const clickedUnit = findUnitAt(cell.col, cell.row);
+
+  // ALWAYS show info for clicked unit (own always, enemy if revealed)
+  if(clickedUnit){
+    renderInfoPanel(clickedUnit);
+  }
+
+  // If it's not my turn, stop at info-display (no actions possible)
+  if(gameState.current_player !== myPlayer){ return; }
 
   // If clicked on own unit → select and also auto-pick a sensible default intent
   if(clickedUnit && clickedUnit.owner === myPlayer){

@@ -71,6 +71,7 @@ def fresh_agent_state():
         "my_units_lost": [],
         "enemy_units_lost": [],
         "unit_stall_count": {},
+        "stale_near_citadel_count": {},  # enemy_uid -> consecutive turns seen near our citadel
         "all_events": [],
         "turns_played": 0,
     }
@@ -154,6 +155,196 @@ def pick_action(st, me, agent_state):
                         {"unit_id": uid, "col": enemy_citadel[0], "row": enemy_citadel[1],
                          "rationale": "WIN: capture enemy citadel"},
                         "WIN")
+
+    # ------------------------------------------------------------
+    # P1.25 — ENDGAME OVERRIDE (G14 fix): when we have a big kill lead late,
+    # do not let P1.5 INTR keep us defensive. Force push.
+    # ------------------------------------------------------------
+    turns_played_so_far = agent_state.get("turns_played", 0)
+    kill_lead = agent_state.get("my_kills", 0) - agent_state.get("enemy_kills", 0)
+    if turns_played_so_far > 150 and kill_lead >= 8:
+        push_types = ("terminator", "tank", "paratrooper", "hacker", "scout")
+        best_push = None
+        best_score = -1
+        for mv in moves:
+            uid = mv["unit_id"]
+            u = my_units.get(uid)
+            if not u or u.get("type") not in push_types:
+                continue
+            cur_d = hex_dist((u["col"], u["row"]), enemy_citadel)
+            for tgt in mv["targets"]:
+                new_d = hex_dist((tgt["col"], tgt["row"]), enemy_citadel)
+                delta = cur_d - new_d
+                if delta <= 0: continue
+                score = u.get("attack", 0) + delta * 5 - new_d * 0.5
+                if score > best_score:
+                    best_score = score
+                    best_push = (uid, tgt["col"], tgt["row"], u, new_d)
+        if best_push:
+            uid, c, r, u, nd = best_push
+            return ("move",
+                    {"unit_id": uid, "col": c, "row": r,
+                     "rationale": f"OVERRIDE: lead {kill_lead}, pushing {u['type']} d={nd}"},
+                    f"OVERRIDE {u['type']}")
+
+    # ------------------------------------------------------------
+    # P1.5 — CITADEL-INTRUSION INTERCEPT (G10 fix)
+    # G11 fix: URGENT_R raised 4→6 (scout at row 9 slipped past R=4).
+    # Also: scan DORMANT hidden enemies in battlefield — if a hidden unit hasn't
+    # moved for 20+ turns, it's likely the G8/G11 silent infiltrator pre-sprint.
+    # G14 fix: squatter exclusion (above) prevents hidden air from infinite loop.
+    # ------------------------------------------------------------
+    URGENT_R = 6  # was 4 (G11 scout at dist 9 with movement 3 reached citadel in 3 turns)
+    # G14 fix: hidden air units trap us in infinite INTR loop because cat="unknown".
+    # If a unit has been "stale near citadel" 30+ turns without moving or attacking,
+    # it's clearly NOT a real infiltrator — real infiltrators sprint. Give up on it.
+    # Also track per-unit position signature to detect "hasn't moved" — if same hex
+    # for 25+ turns, treat as harmless squatter.
+    def _can_capture_citadel(eu):
+        cat = eu.get("category")
+        return cat != "air"
+
+    stale_ctr = agent_state.setdefault("stale_near_citadel_count", {})
+    stale_pos = agent_state.setdefault("stale_near_citadel_pos", {})  # uid -> (col,row,idle_turns)
+    current_near_ids = set()
+    for eu in st["enemy_units"]:
+        if not _can_capture_citadel(eu):
+            continue
+        if dist_to_my_cit(eu) <= URGENT_R:
+            current_near_ids.add(eu["id"])
+            stale_ctr[eu["id"]] = stale_ctr.get(eu["id"], 0) + 1
+            prev = stale_pos.get(eu["id"])
+            if prev and prev[0] == eu["col"] and prev[1] == eu["row"]:
+                stale_pos[eu["id"]] = (eu["col"], eu["row"], prev[2] + 1)
+            else:
+                stale_pos[eu["id"]] = (eu["col"], eu["row"], 0)
+    for eid in list(stale_ctr.keys()):
+        if eid not in current_near_ids:
+            stale_ctr.pop(eid, None)
+            stale_pos.pop(eid, None)
+    # Exclude squatters: hidden units that haven't moved for 25+ turns are not real threats
+    for eid in list(stale_ctr.keys()):
+        pos = stale_pos.get(eid)
+        if pos and pos[2] >= 25:
+            stale_ctr.pop(eid, None)  # give up tracking — not an infiltrator
+
+    # G11 addition: track dormant hidden enemies in battlefield (rows 7-9).
+    # Any hidden enemy sitting on same hex for 20+ turns is a pre-sprint infiltrator.
+    dormant_pos = agent_state.setdefault("dormant_hidden_pos", {})  # uid -> (col, row, first_seen_turn)
+    turns_played = agent_state.get("turns_played", 0)
+    for eu in st["enemy_units"]:
+        if eu.get("revealed"):
+            dormant_pos.pop(eu["id"], None)
+            continue
+        r = eu["row"]
+        if (me == 1 and r not in (7, 8, 9, 10)) or (me == 2 and r not in (6, 7, 8, 9)):
+            dormant_pos.pop(eu["id"], None)
+            continue
+        prev = dormant_pos.get(eu["id"])
+        if prev and prev[0] == eu["col"] and prev[1] == eu["row"]:
+            pass  # still dormant on same hex
+        else:
+            dormant_pos[eu["id"]] = (eu["col"], eu["row"], turns_played)
+
+    # Units dormant 20+ turns are urgent
+    dormant_suspects = []
+    for eu in st["enemy_units"]:
+        pos = dormant_pos.get(eu["id"])
+        if pos and (turns_played - pos[2]) >= 20:
+            dormant_suspects.append(eu)
+
+    # Try to reveal dormant suspect with recon drone
+    for suspect in dormant_suspects:
+        for sp in specials:
+            uid = sp["unit_id"]
+            u = my_units[uid]
+            if u["type"] != "recon_drone":
+                continue
+            for act in sp["actions"]:
+                if act["action"] == "reveal" and act.get("target_id") == suspect["id"]:
+                    return ("special",
+                            {"unit_id": uid, "action": "reveal",
+                             "target_id": suspect["id"],
+                             "rationale": f"DORMANT reveal: hidden enemy at ({suspect['col']},{suspect['row']}) for 20+ turns"},
+                            "DORMANT_REV")
+
+    stale_intruders = []
+    for eu in st["enemy_units"]:
+        if stale_ctr.get(eu["id"], 0) >= 2:
+            stale_intruders.append(eu)
+    stale_intruders.sort(key=dist_to_my_cit)
+
+    # Try to attack stale intruder with strongest reachable unit
+    for intr in stale_intruders:
+        # Attack directly if we can kill it
+        best_a = None
+        best_a_atk = -1
+        for aid, tid, _ in flat_attacks:
+            if tid != intr["id"]:
+                continue
+            au = my_units[aid]
+            if au["type"] == "fighter" and intr.get("category") in ("ground", "special"):
+                continue
+            if intr.get("type") == "mine_field" and au["type"] != "engineer":
+                continue
+            # Hacker vs Terminator auto-win
+            if au["type"] == "hacker" and intr.get("type") == "terminator":
+                return ("attack",
+                        {"attacker_id": aid, "target_id": intr["id"],
+                         "rationale": "INTRUDER: Hacker auto-kill Terminator"},
+                        "INTR_HACK")
+            e_atk = intr.get("attack", 0) if isinstance(intr.get("attack"), int) else 4
+            my_atk = au.get("attack", 0)
+            if my_atk > e_atk and my_atk > best_a_atk:
+                best_a_atk = my_atk
+                best_a = aid
+        if best_a is not None:
+            return ("attack",
+                    {"attacker_id": best_a, "target_id": intr["id"],
+                     "rationale": f"INTRUDER kill {intr.get('type','?')} stale {stale_ctr[intr['id']]}t"},
+                    "INTR_KILL")
+
+        # Else move strongest defender toward intruder
+        best_mv = None
+        best_score = -1.0
+        for mv in moves:
+            uid = mv["unit_id"]
+            u = my_units.get(uid)
+            if not u or u.get("category") != "ground":
+                continue
+            # Need somewhat strong (block_priority > 40 ish)
+            if u.get("attack", 0) < 4:
+                continue
+            cur_d = hex_dist((u["col"], u["row"]), (intr["col"], intr["row"]))
+            for tgt in mv["targets"]:
+                new_d = hex_dist((tgt["col"], tgt["row"]), (intr["col"], intr["row"]))
+                if new_d >= cur_d:
+                    continue
+                score = u.get("attack", 0) * 2 + (cur_d - new_d) * 5 - new_d
+                if score > best_score:
+                    best_score = score
+                    best_mv = (uid, tgt["col"], tgt["row"], u)
+        if best_mv:
+            uid, c, r, u = best_mv
+            return ("move",
+                    {"unit_id": uid, "col": c, "row": r,
+                     "rationale": f"INTRUDER intercept w/ {u['type']}"},
+                    f"INTR_MV {u['type']}")
+
+        # Else try to reveal it (recon drone) if hidden
+        if not intr.get("revealed"):
+            for sp in specials:
+                uid = sp["unit_id"]
+                u = my_units[uid]
+                if u["type"] != "recon_drone":
+                    continue
+                for act in sp["actions"]:
+                    if act.get("target_id") == intr["id"] and act["action"] == "reveal":
+                        return ("special",
+                                {"unit_id": uid, "action": "reveal",
+                                 "target_id": intr["id"],
+                                 "rationale": "INTRUDER reveal"},
+                                "INTR_REV")
 
     # ------------------------------------------------------------
     # P2 — DEFEND (artillery/drone insta-kill → melee kill → block)
@@ -322,40 +513,90 @@ def pick_action(st, me, agent_state):
 
     # ------------------------------------------------------------
     # P4.5 — BLOCK unkillable threats
+    # G13 fix: abort BLOCK loop if we've blocked the same threat for 8+ turns.
+    # Without this, Terminator re-blocks the same enemy forever (50+ turn lock).
     # ------------------------------------------------------------
+    block_lock_ctr = agent_state.setdefault("block_lock_count", {})
     if threats:
         block_threat = threats[0]
-        enemy_atk = block_threat.get("attack", 0) \
-            if isinstance(block_threat.get("attack"), int) \
-            else CONFIG["min_blocker_atk_vs_unknown"]
-        best_block = None
-        best_score = -1.0
+        lock_key = f"{block_threat['id']}:{block_threat['col']},{block_threat['row']}"
+        # If we've blocked same threat at same hex 8+ turns → abandon BLOCK, fall through
+        if block_lock_ctr.get(lock_key, 0) >= 8:
+            # Blocked too long, don't BLOCK again — skip P4.5, fall to P7 ADVANCE
+            block_threat = None
+        else:
+            enemy_atk = block_threat.get("attack", 0) \
+                if isinstance(block_threat.get("attack"), int) \
+                else CONFIG["min_blocker_atk_vs_unknown"]
+            best_block = None
+            best_score = -1.0
+            for mv in moves:
+                uid = mv["unit_id"]
+                u = my_units.get(uid)
+                if not u or u.get("category") != "ground":
+                    continue
+                if u.get("attack", 0) < enemy_atk:
+                    continue
+                current_d = hex_dist((u["col"], u["row"]),
+                                      (block_threat["col"], block_threat["row"]))
+                for tgt in mv["targets"]:
+                    new_d = hex_dist((tgt["col"], tgt["row"]),
+                                      (block_threat["col"], block_threat["row"]))
+                    if new_d >= current_d:
+                        continue
+                    type_prio = CONFIG["block_priority"].get(u["type"], 30)
+                    score = type_prio + (current_d - new_d) * CONFIG["block_progress_weight"] - new_d
+                    if score > best_score:
+                        best_score = score
+                        best_block = (uid, tgt["col"], tgt["row"], u)
+            if best_block:
+                block_lock_ctr[lock_key] = block_lock_ctr.get(lock_key, 0) + 1
+                # Clear other block-lock keys (only track current threat)
+                for k in list(block_lock_ctr.keys()):
+                    if k != lock_key:
+                        block_lock_ctr.pop(k, None)
+                uid, c, r, u = best_block
+                return ("move",
+                        {"unit_id": uid, "col": c, "row": r,
+                         "rationale": f"BLOCK({block_lock_ctr[lock_key]}): {u['type']}({u.get('attack')}) "
+                                      f"intercepts {block_threat['type']}"},
+                        f"BLOCK {u['type']}")
+
+    # ------------------------------------------------------------
+    # P4.6 — ENDGAME AGGRESSION OVERRIDE (G13 fix for late-game passivity)
+    # If T > 200 and we have kill lead >= 5, force ADVANCE with strongest ground rusher
+    # toward enemy citadel — skip BLOCK/RECON. Convert material into victory.
+    # ------------------------------------------------------------
+    turns_played = agent_state.get("turns_played", 0)
+    my_kills = agent_state.get("my_kills", 0)
+    enemy_kills = agent_state.get("enemy_kills", 0)
+    if turns_played > 180 and (my_kills - enemy_kills) >= 3:
+        # Find strongest ground unit that can advance
+        push_types = ("terminator", "tank", "paratrooper", "hacker", "scout")
+        best_push = None
+        best_score = -1
         for mv in moves:
             uid = mv["unit_id"]
             u = my_units.get(uid)
-            if not u or u.get("category") != "ground":
+            if not u or u.get("type") not in push_types:
                 continue
-            if u.get("attack", 0) < enemy_atk:
-                continue
-            current_d = hex_dist((u["col"], u["row"]),
-                                  (block_threat["col"], block_threat["row"]))
+            cur_d = hex_dist((u["col"], u["row"]), enemy_citadel)
             for tgt in mv["targets"]:
-                new_d = hex_dist((tgt["col"], tgt["row"]),
-                                  (block_threat["col"], block_threat["row"]))
-                if new_d >= current_d:
+                new_d = hex_dist((tgt["col"], tgt["row"]), enemy_citadel)
+                delta = cur_d - new_d
+                if delta <= 0:
                     continue
-                type_prio = CONFIG["block_priority"].get(u["type"], 30)
-                score = type_prio + (current_d - new_d) * CONFIG["block_progress_weight"] - new_d
+                # Score: prefer strongest unit closest to enemy citadel
+                score = u.get("attack", 0) + delta * 5 - new_d * 0.5
                 if score > best_score:
                     best_score = score
-                    best_block = (uid, tgt["col"], tgt["row"], u)
-        if best_block:
-            uid, c, r, u = best_block
+                    best_push = (uid, tgt["col"], tgt["row"], u, new_d)
+        if best_push:
+            uid, c, r, u, nd = best_push
             return ("move",
                     {"unit_id": uid, "col": c, "row": r,
-                     "rationale": f"BLOCK: {u['type']}({u.get('attack')}) "
-                                  f"intercepts {block_threat['type']}"},
-                    f"BLOCK {u['type']}")
+                     "rationale": f"ENDGAME PUSH: {u['type']} → enemy citadel d={nd}"},
+                    f"ENDGAME {u['type']}")
 
     # ------------------------------------------------------------
     # P5 — TRAINER BOOST best rusher
@@ -421,10 +662,14 @@ def pick_action(st, me, agent_state):
                         "RECON")
 
     # ------------------------------------------------------------
-    # P7 — ADVANCE rushers (with stall penalty)
+    # P7 — ADVANCE rushers (with stall penalty + lateral escape for congestion)
+    # G10 fix: rushers block each other in L2 → 173× fighter vortex.
+    # If direct advance fails AND rusher has been stalled 3+ turns, allow LATERAL
+    # move (sideways, same/slight backward row) to break congestion.
     # ------------------------------------------------------------
     type_rank = {t: i for i, t in enumerate(CONFIG["advance_priority_types"])}
-    advance_candidates = []  # (score, uid, col, row, unit, new_dist)
+    advance_candidates = []
+    lateral_candidates = []
     for mv in moves:
         uid = mv["unit_id"]
         u = my_units.get(uid)
@@ -433,22 +678,25 @@ def pick_action(st, me, agent_state):
         if u["type"] in CONFIG["static_unit_types"]:
             continue
         if u["type"] in ("fighter", "helicopter"):
-            continue  # handled in P8
+            continue
         if u["type"] not in type_rank:
-            continue  # not a known rusher type
+            continue
         current_dist = hex_dist((u["col"], u["row"]), enemy_citadel)
         rank = type_rank[u["type"]]
         stall = agent_state["unit_stall_count"].get(uid, 0)
         for tgt in mv["targets"]:
             new_dist = hex_dist((tgt["col"], tgt["row"]), enemy_citadel)
             delta = current_dist - new_dist
-            if delta <= 0:
-                continue
-            score = (delta * CONFIG["advance_delta_weight"]
-                     - rank * CONFIG["advance_type_rank_weight"]
-                     - stall * CONFIG["stall_penalty_per_turn"]
-                     - new_dist * CONFIG["advance_new_dist_weight"])
-            advance_candidates.append((score, uid, tgt["col"], tgt["row"], u, new_dist))
+            if delta > 0:
+                score = (delta * CONFIG["advance_delta_weight"]
+                         - rank * CONFIG["advance_type_rank_weight"]
+                         - stall * CONFIG["stall_penalty_per_turn"]
+                         - new_dist * CONFIG["advance_new_dist_weight"])
+                advance_candidates.append((score, uid, tgt["col"], tgt["row"], u, new_dist))
+            elif stall >= 3 and delta == 0:
+                # Lateral escape: stalled rusher moves sideways (same distance to citadel)
+                lateral_score = 3 - rank * 0.5 + stall * 0.5 - new_dist * 0.2
+                lateral_candidates.append((lateral_score, uid, tgt["col"], tgt["row"], u, new_dist))
     if advance_candidates:
         advance_candidates.sort(reverse=True, key=lambda x: x[0])
         _, uid, c, r, u, new_dist = advance_candidates[0]
@@ -456,6 +704,13 @@ def pick_action(st, me, agent_state):
                 {"unit_id": uid, "col": c, "row": r,
                  "rationale": f"Advance {u['type']} d={new_dist}"},
                 f"ADV {u['type']}")
+    if lateral_candidates:
+        lateral_candidates.sort(reverse=True, key=lambda x: x[0])
+        _, uid, c, r, u, new_dist = lateral_candidates[0]
+        return ("move",
+                {"unit_id": uid, "col": c, "row": r,
+                 "rationale": f"Lateral escape {u['type']} (stalled, unblocking)"},
+                f"LAT {u['type']}")
 
     # ------------------------------------------------------------
     # P8 — AIR (helicopter advance, fighter hunts air)
@@ -482,21 +737,27 @@ def pick_action(st, me, agent_state):
 
     if CONFIG["fighter_hunts_air_only"]:
         air_enemies = [u for u in revealed if u.get("category") == "air"]
-        if air_enemies:
+        # G10 fix: cap fighter-air runaway (173× looping in G10). Only allow one
+        # fighter move per 8 turns, and only if it actually closes distance meaningfully.
+        last_fighter_turn = agent_state.get("last_fighter_air_turn", -100)
+        turns_since = agent_state["turns_played"] - last_fighter_turn
+        if air_enemies and turns_since >= 8:
             target_pos = (air_enemies[0]["col"], air_enemies[0]["row"])
             for mv in moves:
                 uid = mv["unit_id"]
                 u = my_units.get(uid)
                 if not u or u["type"] != "fighter":
                     continue
+                cur_d_target = hex_dist((u["col"], u["row"]), target_pos)
                 best = None
-                best_d = 1e9
+                best_d = cur_d_target  # only accept actual progress
                 for tgt in mv["targets"]:
                     d = hex_dist((tgt["col"], tgt["row"]), target_pos)
                     if d < best_d:
                         best_d = d
                         best = tgt
                 if best:
+                    agent_state["last_fighter_air_turn"] = agent_state["turns_played"]
                     return ("move",
                             {"unit_id": uid, "col": best["col"], "row": best["row"],
                              "rationale": "Fighter hunts air"},
