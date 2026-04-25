@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.gitignore
+game03.db
+game_logs/
+admin_password.txt
+*.log
