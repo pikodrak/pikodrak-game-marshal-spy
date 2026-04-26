@@ -256,11 +256,9 @@ class AI:
                 # Moderate Terminator bonus (too high → predictable rush into Hacker)
                 term_push = 2 if u.type == "terminator" else 0
                 score += advance * (12 + late_game) + u.attack * 0.6 + adj_enemy_bonus + term_push
-                # Tank can also defend citadel
                 if u.type == "tank":
                     score += defense_pull * 0.5
-                # PATCH (game 1+2): avoid revealed stronger enemies within distance 2.
-                # Game 2 showed adjacency check bypassed by attacking next turn from distance 2.
+                # Avoid moving adjacent to revealed stronger enemies (or within distance 2)
                 for e in gs._player_units(self.enemy, placed=True):
                     if not e.revealed: continue
                     if e.attack <= u.attack + 1: continue
@@ -274,16 +272,13 @@ class AI:
             elif u.type == "private":
                 score += advance * (6 + late_game * 0.6) + adj_enemy_bonus
                 score += defense_pull
-                # PATCH (game 3+4): defensive reserve with SURPLUS RELEASE.
-                # - If < 2 defenders near citadel: glue others there.
-                # - If >= 4: release the excess to push forward (fixes G4 paralysis).
+                # Keep ≥2 defenders near home; release excess (≥4) to push forward
                 dist_to_own = hex_distance(u.col, u.row, my_cit[0], my_cit[1])
                 new_dist_to_own = hex_distance(col, row, my_cit[0], my_cit[1])
                 if _low_defensive_reserve(gs, self.player):
                     if dist_to_own <= 4 and new_dist_to_own > dist_to_own:
                         score -= 20
                 elif _surplus_defensive_reserve(gs, self.player):
-                    # Reward moving AWAY from home
                     if dist_to_own <= 3 and new_dist_to_own > dist_to_own:
                         score += 8
             elif u.type == "engineer":
@@ -297,13 +292,12 @@ class AI:
                 elif _surplus_defensive_reserve(gs, self.player):
                     if dist_to_own <= 3 and new_dist_to_own > dist_to_own:
                         score += 5
-                # PATCH (game 7): engineers had 0 movement all game and formed predictable
-                # wall. Add idle-based movement bonus.
+                # Idle bonus prevents engineers from forming a static wall
                 idle = self._idle_turns(gs, u.id)
                 if idle > 10 and new_dist_to_own > dist_to_own:
                     score += min(15, (idle - 10) * 1.5)
             elif u.type == "hacker":
-                # Hunt terminator if revealed
+                # Hunt revealed terminators
                 terms = [e for e in gs._player_units(self.enemy, placed=True)
                          if e.type == "terminator" and e.revealed]
                 if terms:
@@ -314,18 +308,15 @@ class AI:
                 score += 1000
 
         elif u.category == "air":
-            # PATCH (game 6): air units were getting 0-1 actions per game — completely
-            # drowned out by ground unit scores. Bump BASE weights 2-3x and add strong
-            # idle bonus so stuck helis eventually win over cheaper ground moves.
+            # Idle bonus ensures air units don't get drowned out by ground unit scores
             enemies = [e for e in gs._player_units(self.enemy, placed=True) if e.revealed]
             if enemies:
                 d = min(hex_distance(col, row, e.col, e.row) for e in enemies)
-                score += max(0, 4 - d) * 3  # was 1.5
-            score += advance * 4  # was 1.5
-            # Idle bonus: grows 2 per turn idle, capped at +30
+                score += max(0, 4 - d) * 3
+            score += advance * 4
             idle = self._idle_turns(gs, u.id)
             score += min(30, idle * 2)
-            # Hunt enemy Recon Drone with air (AI sees types directly)
+            # Helicopters hunt recon drones; center-column pull
             enemy_recons = [e for e in gs._player_units(self.enemy, placed=True)
                             if e.type == "recon_drone"]
             if enemy_recons and u.type == "helicopter":
@@ -336,22 +327,21 @@ class AI:
                 current_d_home = hex_distance(u.col, u.row, my_cit[0], my_cit[1])
                 new_d_home = hex_distance(col, row, my_cit[0], my_cit[1])
                 if current_d_home <= 4 and new_d_home > current_d_home:
-                    score += 15  # big reward for leaving hangar
+                    score += 15
                 center_dist = abs(col - 8)
                 score += max(0, 4 - center_dist) * 0.8
 
         elif u.category == "special":
             if u.type == "recon_drone":
-                # PATCH (game 6): recon was under-used. Bump weights and add idle bonus.
+                # Idle bonus + center pull ensures recon drone stays active
                 unknown = [e for e in gs._player_units(self.enemy, placed=True)
                            if not e.revealed]
                 if unknown:
                     d = min(hex_distance(col, row, e.col, e.row) for e in unknown)
-                    score += max(0, 4 - d) * 3   # was 1.5
-                score += advance * 2  # was 0.8
+                    score += max(0, 4 - d) * 3
+                score += advance * 2
                 center_dist = abs(col - 8)
-                score += max(0, 4 - center_dist) * 2   # stronger center pull
-                # Idle bonus — force recon to move eventually
+                score += max(0, 4 - center_dist) * 2
                 idle = self._idle_turns(gs, u.id)
                 score += min(25, idle * 1.5)
             elif u.type == "trainer":
@@ -362,14 +352,12 @@ class AI:
                     score += max(0, 3 - d) * 1.2
                 score += advance * 0.5
             elif u.type == "corruptor":
-                # PATCH (game 1+5): position near battlefield center column (col 7-9).
-                # Game 5 showed corruptor stayed too far left/right to see central rushers.
+                # Center-column pull keeps corruptor in range of column-8 rushers
                 enemies = [e for e in gs._player_units(self.enemy, placed=True)]
                 if enemies:
                     d = min(hex_distance(col, row, e.col, e.row) for e in enemies)
                     score += max(0, u.effective_range() + 2 - d) * 1.5
                 score += advance * 1.2
-                # Center-column pull so action range covers col 8 rushers
                 center_dist = abs(col - 8)
                 score += max(0, 3 - center_dist) * 2
             elif u.type == "jammer":
@@ -395,10 +383,8 @@ class AI:
         my_cit = CITADELS[self.player]
         threat_to_cit_d = hex_distance(tgt.col, tgt.row, my_cit[0], my_cit[1])
         threat_to_cit = threat_to_cit_d <= 3
-        # MUCH stronger urgency for anything actually near our citadel
         citadel_defense_bonus = max(0, 7 - threat_to_cit_d) * 3
-        # PATCH (game 1+4): hunt enemy reconnaissance. Recon drone feeds enemy's kill chain.
-        # Game 4 showed heli still didn't engage — bump extra hard, especially for heli.
+        # Recon drones feed enemy's kill chain — prioritize eliminating them
         recon_bonus = 0
         if tgt.type == "recon_drone":
             recon_bonus = 30 if u.type == "helicopter" else 20
@@ -410,12 +396,10 @@ class AI:
         if tgt.type == "mine_field":
             return 18 if u.type == "engineer" else -30
 
-        # Late-game eagerness – encourages attrition when stalling
         late = max(0, gs.turn - 10) * 0.5
 
         if tgt.revealed:
             if u.attack > tgt.attack:
-                # Balanced between under-attack (game 7) and over-attack (game 8)
                 s = 25 + tgt.attack * 2 + late + citadel_defense_bonus + recon_bonus
                 if threat_to_cit: s += 10
                 return s
@@ -423,7 +407,7 @@ class AI:
                 return (12 if u.attack <= 3 else 4) + late * 0.4
             else:
                 return -6 + late * 0.2
-        # Unknown enemy
+        # Unknown enemy: stronger units take the gamble more willingly
         base = 6 if u.attack >= 6 else (3 if u.attack >= 4 else -2)
         return base + late * 0.3
 
@@ -432,13 +416,12 @@ class AI:
         act = action["action"]
 
         if act == "reveal":
-            # PATCH (game 6): recon drone needs to reveal more. Base bumped across board.
             tgt = gs.unit(action["target_id"])
             if not tgt:
                 return 0
             d = hex_distance(tgt.col, tgt.row, my_cit[0], my_cit[1])
-            base = 25 if d <= 3 else (18 if d <= 6 else 12)  # was 18/10/5
-            # Extra points if target is in central column (likely rusher)
+            base = 25 if d <= 3 else (18 if d <= 6 else 12)
+            # Central-column units are likely rushers — bonus for revealing them
             center_dist = abs(tgt.col - 8)
             if center_dist <= 2: base += 8
             return base
@@ -459,42 +442,37 @@ class AI:
             enemy_cit = CITADELS[self.enemy]
             d = hex_distance(tgt.col, tgt.row, enemy_cit[0], enemy_cit[1])
             base = 8 if d <= 4 else (4 if d <= 7 else 1)
-            # Fade faster – AI ended game 1 with 22 specials vs 100 moves; re-balance
+            # Diminishing returns over time to avoid over-investing in boosts vs. attacking
             base -= max(0, gs.turn - 12) * 0.3
             return base
 
         if act == "convert_hacker":
-            # PATCH (game 2+7): only convert when Terminator revealed near OUR citadel.
-            # Game 7: CPU wasted T1 conversion on nothing — we shouldn't gamble on T1.
+            # Only convert when a Terminator is revealed; never waste conversions blindly
             my_cit = CITADELS[self.player]
             terms = [e for e in gs._player_units(self.enemy, placed=True)
                      if e.type == "terminator" and e.revealed]
             for t in terms:
                 d = hex_distance(t.col, t.row, my_cit[0], my_cit[1])
                 if d <= 6:
-                    return 22   # urgent — terminator near home
+                    return 22
             if terms:
-                return 10   # revealed but far — modest value
-            return 0   # don't waste conversions blindly
+                return 10
+            return 0
 
         if act == "weaken":
-            # PATCH (game 2): weaken bumped.
-            # PATCH (game 3): diminishing returns on same target.
-            # PATCH (game 4): bigger base vs strong targets + bonus for boosted enemies.
             tgt = gs.unit(action["target_id"])
             if not tgt:
                 return 0
             d = hex_distance(tgt.col, tgt.row, my_cit[0], my_cit[1])
-            # Higher base; much higher if enemy ATK >= 6
             if tgt.attack >= 6:
                 base = 35 if d <= 3 else 30
             else:
                 base = 25 if d <= 3 else 18
             base += max(0, tgt.attack - 3) * 2
-            # Extra value: weakening a boosted enemy (boost_count>0 = trainer-enhanced)
+            # Bonus for weakening trainer-boosted enemies
             if getattr(tgt, "boost_count", 0) > 0:
                 base += 8
-            # Diminishing returns
+            # Diminishing returns on heavily-corrupted targets
             already_weakened = getattr(tgt, "corrupt_attack", 0)
             if already_weakened >= 2:
                 base -= already_weakened * 10

@@ -5,6 +5,7 @@ Maršál a Špión – FastAPI Server
 import os
 import json
 import time
+from datetime import datetime
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.staticfiles import StaticFiles
@@ -12,7 +13,10 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import uvicorn
 
-from game_engine import GameState
+from game_engine import (
+    GameState, UNIT_DEFS, NUM_ROWS, MOUNTAINS, CITADELS,
+    PER_LEVEL_UNIQUE, HACKER_CONVERSIONS_PER_GAME, TRAINER_BOOST_MAX_PER_UNIT, special_cap,
+)
 from ai_engine import AI
 import auth
 
@@ -552,9 +556,8 @@ BATTLE_ACTION_TYPES = {"move", "attack", "attack_wasted", "special", "pass", "tu
 
 
 def _save_replay(gs: GameState):
-    import json as _json
     players = GAME_PLAYERS.get(gs.game_id, {})
-    initial = _json.dumps(gs.battle_start_state, ensure_ascii=False) if gs.battle_start_state else "{}"
+    initial = json.dumps(gs.battle_start_state, ensure_ascii=False) if gs.battle_start_state else "{}"
     # Only battle-phase actions go into the replay; placement is captured in initial snapshot
     battle_actions = [a for a in gs.replay_actions if a.get("type") in BATTLE_ACTION_TYPES]
     auth.save_replay(
@@ -575,8 +578,6 @@ def _save_game_log(gs: GameState):
     """Rich per-game log for offline analysis.
     Includes: final state, full engine event log, raw replay action stream
     (with bot rationales if any), per-turn built-in AI decision traces."""
-    import os
-    from datetime import datetime
     os.makedirs("game_logs", exist_ok=True)
     players = GAME_PLAYERS.get(gs.game_id, {})
     bots = BOT_PLAYERS.get(gs.game_id, {})
@@ -615,8 +616,7 @@ def _save_game_log(gs: GameState):
     }
     fname = f"game_logs/{gs.game_id}.json"
     with open(fname, "w", encoding="utf-8") as f:
-        import json as json_mod
-        json_mod.dump(log, f, ensure_ascii=False, indent=1)
+        json.dump(log, f, ensure_ascii=False, indent=1)
 
 
 def _count_by_type(gs: GameState, player: int) -> dict:
@@ -774,7 +774,6 @@ def api_admin_change_password(req: AdminPasswordReq, _=Depends(require_admin)):
 @app.get("/api/admin/unit_defs")
 def api_admin_unit_defs(_=Depends(require_admin)):
     """Current UNIT_DEFS + active overrides, so the admin UI can show both."""
-    from game_engine import UNIT_DEFS
     settings = auth.get_admin_settings()
     return {"ok": True, "unit_defs": UNIT_DEFS,
             "overrides": settings.get("unit_overrides", {})}
@@ -783,7 +782,6 @@ def api_admin_unit_defs(_=Depends(require_admin)):
 @app.post("/api/admin/unit_override")
 def api_admin_unit_override(req: AdminUnitOverrideReq, _=Depends(require_admin)):
     """Set or clear an override for a specific unit type. None fields are unchanged."""
-    from game_engine import UNIT_DEFS
     if req.utype not in UNIT_DEFS:
         raise HTTPException(400, "unknown_utype")
     settings = auth.get_admin_settings()
@@ -1195,9 +1193,6 @@ def api_bot_rules():
     An external LLM agent can inject this JSON into its system prompt to
     bootstrap understanding of the game without parsing API.md.
     """
-    from game_engine import (UNIT_DEFS, NUM_ROWS, MOUNTAINS, CITADELS,
-                              PER_LEVEL_UNIQUE, HACKER_CONVERSIONS_PER_GAME,
-                              TRAINER_BOOST_MAX_PER_UNIT, special_cap)
     return {
         "ok": True,
         "version": "1.0",
@@ -1325,8 +1320,7 @@ def api_bot_replay(game_id: str, request: Request):
     if not row:
         raise HTTPException(404, "replay_not_ready")
     data = dict(row)
-    import json as _json
-    data["actions"] = _json.loads(data["actions_json"])
+    data["actions"] = json.loads(data["actions_json"])
     del data["actions_json"]
     return {"ok": True, "replay": data}
 

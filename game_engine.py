@@ -789,6 +789,37 @@ class GameState:
                             "attack_type": "melee"})
         return targets
 
+    def _resolve_mine_attack(self, att: Unit, tgt: Unit) -> list:
+        events = []
+        if att.type == "engineer":
+            self._kill(tgt)
+            self._reveal(att)
+            events.append({"type": "mine_defused_by_attack", "attacker": att.id, "mine": tgt.id})
+            self._log(f"{att.name_cs} zničil minové pole", player=att.owner, event="mine_defused")
+        elif att.category == "ground":
+            self._reveal(tgt)
+            self._kill(att)
+            events.append({"type": "mine_kills_ground", "attacker": att.id, "mine": tgt.id})
+            self._log(f"{att.name_cs} zaútočil na minu a byl zničen", player=att.owner,
+                      event="mine_kills")
+        elif att.category == "air":
+            self._reveal(att)
+            self._reveal(tgt)
+            events.append({"type": "mine_reveals_air", "attacker": att.id, "mine": tgt.id})
+            self._log(f"{att.name_cs} byl odhalen minou", player=att.owner, event="mine_reveals_air")
+        else:
+            events.append({"type": "attack_noop"})
+        return events
+
+    def _resolve_hacker_terminator(self, att: Unit, tgt: Unit) -> list:
+        self._reveal(att)
+        self._reveal(tgt)
+        self._kill(tgt)
+        att.col, att.row = tgt.col, tgt.row
+        self._log(f"{att.name_cs} hacknul {tgt.name_cs}!", player=att.owner, event="hacker_kill")
+        self._check_citadel_after_move(att)
+        return [{"type": "hacker_kills_terminator", "attacker": att.id, "target": tgt.id}]
+
     def attack_unit(self, player: int, attacker_id: str, target_id: str) -> dict:
         if self.phase != "battle":
             return {"ok": False, "error": "not_battle_phase"}
@@ -801,16 +832,13 @@ class GameState:
         if not tgt or tgt.owner == player or not tgt.alive or not tgt.placed:
             return {"ok": False, "error": "invalid_target"}
 
-        # Adjacency
         if (tgt.col, tgt.row) not in set(hex_neighbors(att.col, att.row)):
             return {"ok": False, "error": "not_adjacent"}
 
-        # Unit can attack at all?
         allowed = UNIT_DEFS[att.type]["std_attack_targets"]
         if not allowed:
             return {"ok": False, "error": "cannot_std_attack"}
 
-        # Category check: fighter vs non-air → wasted turn
         if tgt.category not in allowed:
             self._log(f"{att.name_cs}: zmařený tah (nemůže útočit na {tgt.name_cs})",
                       player=player, event="wasted_turn")
@@ -820,64 +848,13 @@ class GameState:
             return {"ok": True, "wasted": True,
                     "events": [{"type": "wasted_turn", "reason": "invalid_category"}]}
 
-        events = []
-        # Mine field special resolution
         if tgt.type == "mine_field":
-            if att.type == "engineer":
-                self._kill(tgt)
-                self._reveal(att)
-                events.append({"type": "mine_defused_by_attack",
-                               "attacker": att.id, "mine": tgt.id})
-                self._log(f"{att.name_cs} zničil minové pole", player=player,
-                          event="mine_defused")
-            elif att.category == "ground":
-                # Attacker dies; mine stays + revealed
-                self._reveal(tgt)
-                self._kill(att)
-                events.append({"type": "mine_kills_ground",
-                               "attacker": att.id, "mine": tgt.id})
-                self._log(f"{att.name_cs} zaútočil na minu a byl zničen", player=player,
-                          event="mine_kills")
-            elif att.category == "air":
-                # Both revealed, both stay
-                self._reveal(att)
-                self._reveal(tgt)
-                events.append({"type": "mine_reveals_air",
-                               "attacker": att.id, "mine": tgt.id})
-                self._log(f"{att.name_cs} byl odhalen minou", player=player,
-                          event="mine_reveals_air")
-            else:
-                # Special attacking mine: no-op (specials shouldn't std-attack anyway)
-                events.append({"type": "attack_noop"})
-            self._record({"type": "attack", "player": player,
-                          "attacker": attacker_id, "target": target_id,
-                          "events": events})
-            self._check_elimination()
-            if self.phase != "finished":
-                self._end_turn()
-            return {"ok": True, "events": events}
+            events = self._resolve_mine_attack(att, tgt)
+        elif att.type == "hacker" and tgt.type == "terminator":
+            events = self._resolve_hacker_terminator(att, tgt)
+        else:
+            events = self._resolve_melee(att, tgt)
 
-        # Hacker vs Terminator melee: hacker always wins
-        if att.type == "hacker" and tgt.type == "terminator":
-            self._reveal(att)
-            self._reveal(tgt)
-            self._kill(tgt)
-            att.col, att.row = tgt.col, tgt.row
-            events.append({"type": "hacker_kills_terminator",
-                           "attacker": att.id, "target": tgt.id})
-            self._log(f"{att.name_cs} hacknul {tgt.name_cs}!",
-                      player=player, event="hacker_kill")
-            self._check_citadel_after_move(att)
-            self._record({"type": "attack", "player": player,
-                          "attacker": attacker_id, "target": target_id,
-                          "events": events})
-            self._check_elimination()
-            if self.phase != "finished":
-                self._end_turn()
-            return {"ok": True, "events": events}
-
-        # Regular melee
-        events = self._resolve_melee(att, tgt)
         self._record({"type": "attack", "player": player,
                       "attacker": attacker_id, "target": target_id,
                       "events": events})
@@ -1367,18 +1344,3 @@ class GameState:
     @classmethod
     def from_json(cls, s: str) -> "GameState":
         return cls.from_dict(json.loads(s))
-
-
-# ============================================================
-# Back-compat shim: old server.py imports
-# ============================================================
-
-# Some external callers may import these; keep for compat.
-ZONE_LIMITS = {0: {"special": special_cap(0)},
-               1: {"special": special_cap(1)},
-               2: {"special": special_cap(2)}}
-RANGED_UNITS = {}  # v1.0: no ranged standard attacks; artillery is a special
-
-
-def unit_range(u) -> int:
-    return u.effective_range()
