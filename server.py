@@ -30,6 +30,8 @@ GAME_PLAYERS: dict[str, dict] = {}
 BOT_PLAYERS: dict[str, dict] = {}
 # Queue of bots waiting for a human or bot opponent: [(bot_id, game_id, queued_at)]
 BOT_QUEUE: list = []
+# Persistent AI instances per game so idle tracking works across turns
+AI_INSTANCES: dict[str, AI] = {}
 
 
 # ============================================================
@@ -290,6 +292,12 @@ def api_game_state(game_id: str, user=Depends(get_user)):
     if gs.phase == "battle" and gs.current_player == player:
         view["available_actions"] = _get_available_actions(gs, player)
 
+    # Add player labels so the client can show names in logs and UI
+    view["player_labels"] = {
+        "1": _label_for_player(gs, 1),
+        "2": _label_for_player(gs, 2),
+    }
+
     return {"ok": True, **view}
 
 
@@ -505,12 +513,16 @@ def api_hotseat_action(game_id: str, req: HotseatActionReq, user=Depends(get_use
 def _maybe_ai_turn(gs: GameState):
     if gs.phase == "finished":
         _record_result(gs)
+        AI_INSTANCES.pop(gs.game_id, None)
         return
     if gs.ai_player and gs.current_player == gs.ai_player:
-        ai = AI(player=gs.ai_player)
+        if gs.game_id not in AI_INSTANCES:
+            AI_INSTANCES[gs.game_id] = AI(player=gs.ai_player)
+        ai = AI_INSTANCES[gs.game_id]
         ai.do_turn(gs)
         if gs.phase == "finished":
             _record_result(gs)
+            AI_INSTANCES.pop(gs.game_id, None)
 
 
 def _record_result(gs: GameState):

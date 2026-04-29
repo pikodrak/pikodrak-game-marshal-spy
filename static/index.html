@@ -29,24 +29,31 @@
   --gold:          #ffd700;
   --green:         #00ff88;
 
-  /* level body colors (per rules) */
-  --level-0-body:  #aed6f1;    /* pale blue */
-  --level-1-body:  #abebc6;    /* pale green */
-  --level-2-body:  #f5cba7;    /* pale orange */
+  /* level body colors — brightness only: L0 lightest, L2 darkest */
+  --level-0-body:  #c8d4dc;    /* light steel */
+  --level-1-body:  #8fa0ae;    /* mid steel */
+  --level-2-body:  #566370;    /* dark steel */
 
   /* unit borders */
   --concealed:     #1e6b3a;    /* dark green */
   --revealed:      #f1c40f;    /* yellow */
   --corrupted:     #c0392b;    /* red inner ring */
 
-  /* player flags */
-  --p1-flag:       #00e5ff;    /* cyan (you) */
-  --p2-flag:       #ff3d3d;    /* red (opponent) */
+  /* player flags — green vs orange per spec */
+  --p1-flag:       #00cc55;    /* green (you) */
+  --p2-flag:       #ff8800;    /* orange (opponent) */
 
   /* board zones */
-  --zone-citadel:  #2a1e10;
+  --zone-citadel:  #3a0808;    /* dark red both sides */
   --zone-battlefield: #0d1225;
   --zone-mountain: #2a3450;
+  /* level zone tints per player */
+  --zone-p1-l0:    #0b1f10;   /* player L0 lightest */
+  --zone-p1-l1:    #091808;   /* player L1 */
+  --zone-p1-l2:    #071208;   /* player L2 darkest */
+  --zone-p2-l0:    #1f150b;   /* opponent L0 lightest */
+  --zone-p2-l1:    #180e07;   /* opponent L1 */
+  --zone-p2-l2:    #120a05;   /* opponent L2 darkest */
 
   /* fonts */
   --font:          'Share Tech Mono', 'Consolas', monospace;
@@ -148,51 +155,97 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
 #board-area{flex:1;position:relative;background:var(--bg);overflow:hidden}
 #board-canvas{display:block;width:100%;height:100%;touch-action:none}
 
-#right-panel{width:var(--panel-w);min-width:var(--panel-w);background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column}
-#right-panel .panel-half{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-#right-panel .panel-half+.panel-half{border-top:1px solid var(--border)}
-.panel-title{padding:8px 12px;font-family:var(--font-head);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:2px;border-bottom:1px solid var(--border-dim);font-weight:700}
-.panel-body{flex:1;overflow-y:auto;padding:10px 12px}
+#right-panel{width:var(--panel-w);min-width:var(--panel-w);background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.panel-title{padding:6px 12px;font-family:var(--font-head);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:2px;border-bottom:1px solid var(--border-dim);font-weight:700;flex-shrink:0}
+.panel-body{overflow-y:auto;padding:8px 12px}
+
+/* players bar */
+#players-bar{flex-shrink:0;border-bottom:1px solid var(--border)}
+.player-row{display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:12px}
+.player-row+.player-row{border-top:1px solid var(--border-dim)}
+.player-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.player-dot.my{background:var(--p1-flag)}
+.player-dot.opp{background:var(--p2-flag)}
+.player-name{flex:1;font-weight:600;color:var(--text)}
+.player-timer{color:var(--gold);font-family:var(--font-mono);font-size:11px}
+.player-row.active-turn .player-name{color:var(--green)}
 
 /* info panel */
-#info-content{font-size:13px}
-#info-content .unit-name{font-size:14px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:6px}
-#info-content .flag{width:12px;height:12px;display:inline-block;border-radius:2px}
-#info-content .reveal-pill{display:inline-block;padding:2px 6px;border-radius:2px;font-size:10px;margin-left:4px;vertical-align:middle}
+#info-bar{flex-shrink:0;border-bottom:1px solid var(--border);max-height:160px;display:flex;flex-direction:column}
+#info-content{font-size:12px;overflow-y:auto;padding:8px 12px}
+#info-content .unit-name{font-size:13px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+#info-content .flag{width:10px;height:10px;display:inline-block;border-radius:2px}
+#info-content .reveal-pill{display:inline-block;padding:1px 5px;border-radius:2px;font-size:10px;margin-left:4px;vertical-align:middle}
 #info-content .reveal-pill.rev{background:var(--revealed);color:#000}
 #info-content .reveal-pill.hid{background:var(--concealed);color:#fff}
-#info-content .stat{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;border-bottom:1px solid var(--border-dim)}
+#info-content .stat{display:flex;justify-content:space-between;padding:2px 0;font-size:11px;border-bottom:1px solid var(--border-dim)}
 #info-content .stat .lbl{color:var(--text-dim)}
 #info-content .stat .val{font-weight:600}
 #info-content .stat .val.mod-red{color:var(--corrupted)}
-#info-content .desc{margin-top:8px;color:var(--text-dim);font-size:11px;line-height:1.5;font-style:italic}
-#info-content.hint{color:var(--text-mute);font-size:12px;text-align:center;padding-top:20px}
+#info-content .desc{margin-top:6px;color:var(--text-dim);font-size:10px;line-height:1.5;font-style:italic}
+#info-content.hint{color:var(--text-mute);font-size:12px;text-align:center;padding-top:16px}
+
+/* action section in right panel */
+#action-section{flex-shrink:0;border-bottom:1px solid var(--border)}
+#battle-actions-panel{display:none;padding:6px 8px;display:none;flex-direction:column;gap:4px}
+#battle-actions-panel.visible{display:flex}
+.action-row{display:flex;gap:4px}
+.action-row .btn{flex:1;font-size:11px;padding:6px 4px;text-align:center}
+#placement-bottom-panel{display:none;flex-direction:column}
+#placement-bottom-panel.visible{display:flex}
+.sel-unit-info{padding:4px 12px;font-size:11px;color:var(--text-dim);border-bottom:1px solid var(--border-dim)}
+
+/* turn indicator — no background panel, just text */
+#turn-indicator{flex-shrink:0;padding:5px 12px;font-size:12px;font-weight:600;text-align:center;border-bottom:1px solid var(--border-dim)}
+#turn-indicator.your-turn{color:var(--p1-flag)}
+#turn-indicator.opp-turn{color:var(--p2-flag)}
+#turn-indicator.neutral{color:var(--text-dim)}
 
 /* unit picker (placement phase) */
-#unit-picker{padding:6px}
-#unit-picker .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
-.picker-btn{background:var(--panel-2);border:1px solid var(--border-dim);padding:6px 2px;font-size:11px;cursor:pointer;border-radius:3px;text-align:center;color:var(--text);position:relative}
+#unit-picker{padding:4px}
+#unit-picker .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.picker-btn{background:var(--panel-2);border:1px solid var(--border-dim);padding:5px 2px;font-size:10px;cursor:pointer;border-radius:3px;text-align:center;color:var(--text);position:relative}
 .picker-btn:hover{border-color:var(--accent)}
 .picker-btn.active{border-color:var(--accent);background:rgba(79,209,255,.08)}
 .picker-btn.exhausted{opacity:.35;cursor:not-allowed}
-.picker-btn .abbr{font-weight:700;font-size:14px}
-.picker-btn .cnt{display:block;color:var(--text-dim);font-size:10px;margin-top:2px;font-family:var(--font-mono)}
-.picker-btn .nm{display:block;font-size:9px;color:var(--text-mute);margin-top:1px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.picker-btn .abbr{font-weight:700;font-size:13px}
+.picker-btn .cnt{display:block;color:var(--text-dim);font-size:9px;margin-top:2px;font-family:var(--font-mono)}
+.picker-btn .nm{display:block;font-size:8px;color:var(--text-mute);margin-top:1px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* formation loader */
-#form-loader{padding:6px;display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border-dim)}
-#form-loader .fbtn{padding:4px 8px;background:var(--panel-2);border:1px solid var(--border-dim);font-size:11px;cursor:pointer;border-radius:3px;color:var(--text)}
+#form-loader{padding:4px 6px;display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border-dim)}
+#form-loader .fbtn{padding:3px 7px;background:var(--panel-2);border:1px solid var(--border-dim);font-size:10px;cursor:pointer;border-radius:3px;color:var(--text)}
 #form-loader .fbtn:hover{border-color:var(--accent)}
 #form-loader .fbtn.empty{color:var(--text-mute);font-style:italic}
 
 /* log */
-#log-panel .entry{font-size:11px;color:var(--text-dim);padding:3px 0;border-bottom:1px solid var(--border-dim);line-height:1.3}
-#log-panel .entry .t{color:var(--accent);font-family:var(--font-mono);margin-right:4px;font-size:10px}
+#log-bar{flex:1;min-height:0;display:flex;flex-direction:column;border-bottom:1px solid var(--border)}
+#log-panel{flex:1;overflow-y:auto;padding:6px 10px}
+#log-panel .entry{font-size:10px;color:var(--text-dim);padding:2px 0;border-bottom:1px solid var(--border-dim);line-height:1.3}
+#log-panel .entry .t{color:var(--accent);font-family:var(--font-mono);margin-right:4px;font-size:9px}
+#log-panel .entry.own{color:#55dd88}
+#log-panel .entry.opp{color:#ff9944}
 
-/* action bar */
-#action-bar{height:44px;min-height:44px;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:6px;padding:0 10px}
-#action-bar .btn{font-size:12px;padding:7px 12px}
+/* chat */
+#chat-bar{flex-shrink:0;border-bottom:1px solid var(--border)}
+#chat-messages{max-height:60px;overflow-y:auto;padding:4px 10px;font-size:10px;color:var(--text-dim)}
+.chat-input-row{display:flex;gap:4px;padding:4px 8px}
+.chat-input-row input{flex:1;padding:4px 6px;font-size:11px}
+.chat-input-row .btn{padding:4px 8px;font-size:11px}
+
+/* unit counts */
+#unit-counts-bar{flex-shrink:0}
+#unit-counts-content{padding:6px 12px;font-size:11px;color:var(--text-dim)}
+.count-row{display:flex;justify-content:space-between;padding:2px 0}
+.count-row .alive{color:var(--p1-flag)}
+.count-row .dead{color:var(--accent-2)}
+.count-row.opp .alive{color:var(--p2-flag)}
+
+/* action bar — kept minimal for placement phase confirm button */
+#action-bar{height:40px;min-height:40px;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:0 10px}
+#action-bar .btn{font-size:11px;padding:6px 10px}
 #action-bar .selected-unit{margin-right:auto;font-size:11px;color:var(--text-dim);padding-left:6px}
+#action-bar #hexes-filled{color:var(--text-dim);font-size:11px}
 
 /* mobile unplaced swipe bar */
 #mobile-picker{display:none;height:60px;min-height:60px;background:var(--panel);border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;white-space:nowrap;padding:6px}
@@ -326,15 +379,7 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
 
 <!-- ========== GAME SCREEN (placement + battle) ========== -->
 <div id="game-screen" class="screen">
-  <div id="top-bar">
-    <span id="phase-badge" class="phase">—</span>
-    <span id="turn-banner" class="turn-banner">—</span>
-    <span id="timer" class="timer"></span>
-    <span class="menu-btn" onclick="exitGame()">← Lobby</span>
-  </div>
-
   <div id="countdown-badge"></div>
-
   <div id="mobile-picker"></div>
 
   <div id="game-body">
@@ -343,47 +388,88 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
     </div>
 
     <div id="right-panel">
-      <div class="panel-half" id="info-panel-half">
-        <div class="panel-title">ℹ Info o jednotce</div>
-        <div class="panel-body" id="info-content">
-          <div class="hint">Najeď na jednotku pro detail</div>
+      <!-- Players bar -->
+      <div id="players-bar">
+        <div class="player-row" id="my-player-row">
+          <span class="player-dot my"></span>
+          <span class="player-name" id="my-player-name">—</span>
+          <span class="player-timer" id="my-player-timer"></span>
+        </div>
+        <div class="player-row" id="opp-player-row">
+          <span class="player-dot opp"></span>
+          <span class="player-name" id="opp-player-name">Soupeř</span>
+          <span class="player-timer" id="opp-player-timer"></span>
         </div>
       </div>
-      <div class="panel-half" id="bottom-panel-half">
-        <!-- Contents swap by phase -->
-        <div id="placement-bottom" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden">
+
+      <!-- Unit info -->
+      <div id="info-bar">
+        <div class="panel-title">Vybraná jednotka</div>
+        <div id="info-content"><div class="hint">Najeď na jednotku</div></div>
+      </div>
+
+      <!-- Action section — swaps by phase -->
+      <div id="action-section">
+        <!-- Battle action buttons -->
+        <div id="battle-actions-panel">
+          <div class="sel-unit-info" id="sel-unit-label">Vyber vlastní jednotku</div>
+          <div class="action-row" style="padding:4px 8px;gap:4px">
+            <button class="btn primary" id="btn-move" onclick="setIntent('move')">🚶 Pohyb</button>
+            <button class="btn" id="btn-attack" onclick="setIntent('attack')">⚔ Útok</button>
+          </div>
+          <div class="action-row" style="padding:0 8px 4px;gap:4px">
+            <button class="btn" id="btn-special" onclick="setIntent('special')">✨ Speciál</button>
+            <button class="btn ghost" onclick="passTurn()">↷ Pas</button>
+            <button class="btn ghost" id="btn-speedup" onclick="requestSpeedup()" style="display:none">⏩</button>
+          </div>
+        </div>
+        <!-- Placement controls -->
+        <div id="placement-bottom-panel">
           <div class="panel-title">🎖 Formace</div>
           <div id="form-loader"></div>
-          <div class="panel-title">⬢ Jednotky k rozmístění</div>
-          <div class="panel-body" id="unit-picker"></div>
+          <div class="panel-title">⬢ Jednotky</div>
+          <div id="unit-picker"></div>
+          <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-top:1px solid var(--border-dim)">
+            <button class="btn ghost" style="font-size:10px;padding:4px 6px" onclick="clearPlacement()">🗑</button>
+            <button class="btn ghost" style="font-size:10px;padding:4px 6px" onclick="randomPlace()">🎲</button>
+            <button class="btn ghost" style="font-size:10px;padding:4px 6px" onclick="savePresetDialog()">💾</button>
+            <span id="hexes-filled" style="margin-left:auto;font-size:10px;color:var(--text-dim)">—/51</span>
+          </div>
         </div>
-        <div id="battle-bottom" style="display:none;flex:1;flex-direction:column;min-height:0">
-          <div class="panel-title">📜 Log</div>
-          <div class="panel-body" id="log-panel"></div>
+      </div>
+
+      <!-- Turn / phase indicator (no background panel per spec) -->
+      <div id="turn-indicator" class="neutral">—</div>
+
+      <!-- Log -->
+      <div id="log-bar">
+        <div class="panel-title">📜 Log</div>
+        <div id="log-panel"></div>
+      </div>
+
+      <!-- Chat (placeholder — no backend yet) -->
+      <div id="chat-bar">
+        <div class="panel-title">💬 Chat</div>
+        <div id="chat-messages"></div>
+        <div class="chat-input-row">
+          <input id="chat-input" type="text" placeholder="Zpráva…" onkeydown="if(event.key==='Enter')sendChat()">
+          <button class="btn ghost" onclick="sendChat()">→</button>
         </div>
+      </div>
+
+      <!-- Unit counts -->
+      <div id="unit-counts-bar">
+        <div class="panel-title">⚔ Armády</div>
+        <div id="unit-counts-content"></div>
       </div>
     </div>
   </div>
 
+  <!-- Bottom bar: confirm button during placement only -->
   <div id="action-bar">
-    <!-- Placement controls -->
-    <div id="placement-actions" style="display:flex;align-items:center;gap:6px;width:100%">
-      <button class="btn ghost" onclick="clearPlacement()">🗑 Vymazat</button>
-      <button class="btn ghost" onclick="randomPlace()">🎲 Náhodně</button>
-      <button class="btn ghost" onclick="savePresetDialog()">💾 Uložit jako formaci</button>
-      <div style="flex:1"></div>
-      <span id="hexes-filled" style="color:var(--text-dim);font-size:11px">— / 51</span>
+    <div id="placement-actions" style="display:none;align-items:center;gap:6px;width:100%">
+      <span id="placement-status" style="flex:1;font-size:11px;color:var(--text-dim)"></span>
       <button class="btn primary" id="confirm-btn" onclick="confirmPlacement()">✓ Potvrdit rozestavení</button>
-    </div>
-
-    <!-- Battle controls -->
-    <div id="battle-actions" style="display:none;align-items:center;gap:6px;width:100%">
-      <span class="selected-unit" id="sel-unit-label">—</span>
-      <button class="btn primary" id="btn-move" onclick="setIntent('move')">🚶 Pohyb</button>
-      <button class="btn" id="btn-attack" onclick="setIntent('attack')">⚔ Útok</button>
-      <button class="btn" id="btn-special" onclick="setIntent('special')">✨ Speciál</button>
-      <button class="btn ghost" onclick="passTurn()">↷ Pas</button>
-      <button class="btn ghost" id="btn-speedup" onclick="requestSpeedup()" style="display:none">⏩ Zrychlit</button>
     </div>
   </div>
 </div>
@@ -543,7 +629,7 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
       <p style="font-size:13px;line-height:1.6">
         Každý hráč má 51 polí v úrovních. Vyber jednotku v panelu vpravo (na mobilu v liště nad plánem) a klepni na pole.
         Všechny hexy musí být obsazeny nebo potvrdíš "násilně" (prázdná pole zůstanou).
-        Speciálních jednotek: max 2+L na úroveň. Max 1 Terminátor na úroveň, Dělostřelecká baterie jen na L0.
+        Speciálních jednotek: max 2+L na úroveň. Max 1 Kyborg na úroveň, Dělostřelecká baterie jen na L0. Minové pole je pozemní jednotka (nepočítá se do limitu speciálů).
         Jednotky získají úroveň jako trvalý bonus síly (scout 2+L, private 3+L atd.).
       </p>
     </div>
@@ -564,8 +650,8 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
     <div class="lobby-card">
       <h2>Klíčová pravidla</h2>
       <ul style="font-size:13px;line-height:1.8;padding-left:18px">
-        <li><b>Hacker</b> zabije Terminátora v boji na blízko (Terminátora nelze zabít jinak).</li>
-        <li><b>Minové pole</b> zničí jakoukoli pozemní jednotku, která na něj zaútočí (mina zůstává a odhalí se). Jen <b>Ženista</b> dokáže minu zničit.</li>
+        <li><b>Hacker</b> zabije Kybora v boji na blízko (Kybora nelze zabít jinak).</li>
+        <li><b>Minové pole</b> je pozemní jednotka. Zničí jakoukoli pozemní útočící jednotku (mina zůstane a odhalí se). Jen <b>Ženista</b> minu zničí.</li>
         <li><b>Vrtulník</b> útočí na pozemní/letecké/speciální. Při útoku na minu se oba odhalí a zůstanou.</li>
         <li><b>Stíhač</b> útočí jen na letecké jednotky. Útok na pozemní = promarněný tah.</li>
         <li><b>Trenér</b>: +1 síly max 2× na jednotku. Může přeměnit vlastní pozemní jednotku se silou &gt;3 na Hackera (max 2× za hru).</li>
@@ -615,6 +701,40 @@ function pruneAnims(){
 }
 let dragPanOffset = {x:0, y:0};
 let scale = 1;
+let _finishSoundPlayed = false;
+let _lastTurnSoundTurn = -1;
+
+// ============================================================
+// SOUND ENGINE (Web Audio API – no external files needed)
+// ============================================================
+let _audioCtx = null;
+function _getAudioCtx(){
+  if(!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _audioCtx;
+}
+function _beep(freq, dur, type='sine', vol=0.15){
+  try{
+    const ctx = _getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(freq*0.6, ctx.currentTime + dur);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + dur);
+  }catch(e){}
+}
+const SFX = {
+  move:    ()=>{ _beep(330, 0.08, 'square', 0.08); },
+  attack:  ()=>{ _beep(220, 0.12, 'sawtooth', 0.12); setTimeout(()=>_beep(180,0.15,'sawtooth',0.10),80); },
+  special: ()=>{ _beep(660, 0.06, 'sine', 0.10); setTimeout(()=>_beep(880,0.10,'sine',0.08),60); },
+  destroy: ()=>{ _beep(150, 0.25, 'sawtooth', 0.18); setTimeout(()=>_beep(80,0.3,'sawtooth',0.12),100); },
+  win:     ()=>{ [440,550,660,880].forEach((f,i)=>setTimeout(()=>_beep(f,0.2,'sine',0.15),i*120)); },
+  lose:    ()=>{ [440,330,220,110].forEach((f,i)=>setTimeout(()=>_beep(f,0.25,'sawtooth',0.12),i*130)); },
+  turn:    ()=>{ _beep(520, 0.06, 'sine', 0.08); },
+};
 
 // Unit defs mirrored from backend (must match UNIT_DEFS exactly).
 // Kept here so the picker works before any /state roundtrip.
@@ -624,11 +744,11 @@ const UNIT_DEFS_CLIENT = {
   private:     {name:"Vojín",         abbr:"Vo", max:10, cat:"ground", atk:"3+L",  mv:1, desc:"Základní pěchota. Síla 3 + úroveň."},
   paratrooper: {name:"Výsadkář",      abbr:"Vý", max:5, cat:"ground",  atk:"4+L",  mv:2, desc:"Silný nájezdník. Síla 4 + úroveň. Pohyb až 2."},
   tank:        {name:"Tank",          abbr:"Ta", max:4, cat:"ground",  atk:"5+L",  mv:2, desc:"Silná průlomová jednotka. Síla 5 + úroveň. Pohyb až 2."},
-  terminator:  {name:"Terminátor",    abbr:"Te", max:1, cat:"ground",  atk:"8+L",  mv:1, desc:"Nejsilnější pozemka. Síla 8 + úroveň. POZOR: Hacker ho zabije v boji na blízko!"},
-  hacker:      {name:"Hacker",        abbr:"Ha", max:1, cat:"ground",  atk:1,      mv:1, desc:"Při útoku na Terminátora automaticky vítězí (bez ztráty)."},
+  cyborg:      {name:"Kyborg",         abbr:"Ky", max:1, cat:"ground",  atk:"8+L",  mv:1, desc:"Nejsilnější pozemka. Síla 8 + úroveň. POZOR: Hacker ho zabije v boji na blízko!"},
+  hacker:      {name:"Hacker",        abbr:"Ha", max:1, cat:"ground",  atk:1,      mv:1, desc:"Při útoku na Kybora automaticky vítězí (bez ztráty)."},
   helicopter:  {name:"Vrtulník",      abbr:"Vr", max:4, cat:"air",     atk:"3+L",  mv:1, desc:"Útočí na pozemní, letecké a speciální jednotky. Mina ho neumře - jen odhalí."},
   fighter:     {name:"Stíhač",        abbr:"St", max:4, cat:"air",     atk:"4+L",  mv:2, desc:"Útočí jen na letecké jednotky. Smí procházet přes spřátelené jednotky."},
-  mine_field:  {name:"Minové pole",   abbr:"Mi", max:8, cat:"special", atk:0,      mv:0, desc:"Neútočí. Zničí pozemní útočníka (sama přežije). Zničí ji jen Ženista."},
+  mine_field:  {name:"Minové pole",   abbr:"Mi", max:8, cat:"ground",  atk:0,      mv:0, desc:"Pozemní jednotka. Neútočí. Zničí pozemní útočníka (sama přežije). Zničí ji jen Ženista."},
   recon_drone: {name:"Prů. dron",     abbr:"PD", max:4, cat:"special", atk:1,      mv:1, desc:"Speciál: odhalí nepřítele v dosahu (1+L)."},
   attack_drone:{name:"Út. dron",      abbr:"UD", max:4, cat:"special", atk:1,      mv:1, desc:"Speciál: zničí jednotku se silou <4 (dosah 1+L). Při selhání se dron odhalí a cíl dočasně odhalen."},
   trainer:     {name:"Trenér",        abbr:"Tr", max:2, cat:"special", atk:1,      mv:1, desc:"Speciál: +1 síla spřátelené jednotky (max 2× na cíl). Nebo přeměna ATK>3 na Hackera (2×/hra)."},
@@ -636,8 +756,8 @@ const UNIT_DEFS_CLIENT = {
   jammer:      {name:"Rušička",       abbr:"Ru", max:2, cat:"special", atk:1,      mv:1, desc:"Pasivně chrání spřátelené jednotky v okolí (1+L) před odhalením dronem."},
   artillery:   {name:"Děl. baterie",  abbr:"DB", max:2, cat:"special", atk:0,      mv:0, desc:"Jen L0. Speciál: ničí pozemní/speciální v dosahu 2."},
 };
-const UNIT_ORDER = ['engineer','scout','private','paratrooper','tank','terminator','hacker',
-                    'helicopter','fighter','mine_field',
+const UNIT_ORDER = ['engineer','scout','private','paratrooper','tank','cyborg','hacker','mine_field',
+                    'helicopter','fighter',
                     'recon_drone','attack_drone','trainer','corruptor','jammer','artillery'];
 
 // ============================================================
@@ -729,12 +849,18 @@ async function loadLobby(){
     g.games.forEach(x=>{
       const row = document.createElement('div');
       row.className = 'list-row';
-      row.innerHTML = `<span>${x.game_id.slice(0,8)} <span class="meta">${x.mode} / ${x.phase}</span></span>`;
+      const phaseLabel = {placement:'rozestavení', battle:'boj', finished:'dokončená'}[x.phase] || x.phase;
+      row.innerHTML = `<span>${x.game_id.slice(0,8)} <span class="meta">${x.mode} · ${phaseLabel}</span></span>`;
       if(x.joinable){
         const b = document.createElement('button');
         b.className = 'btn'; b.textContent = 'Připojit';
         b.onclick = ()=>joinGame(x.game_id);
         row.appendChild(b);
+      } else {
+        const s = document.createElement('span');
+        s.style.cssText = 'font-size:11px;color:var(--text-mute);padding:4px 8px';
+        s.textContent = x.phase === 'finished' ? 'ukončená' : 'obsazená';
+        row.appendChild(s);
       }
       el.appendChild(row);
     });
@@ -788,6 +914,8 @@ function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null;
 async function enterGame(gid, player){
   currentGameId = gid;
   myPlayer = player;
+  _finishSoundPlayed = false;
+  _lastTurnSoundTurn = -1;
   show('game-screen');
   resizeCanvas();
   startPolling();
@@ -827,32 +955,40 @@ async function refreshState(){
 
 function updateUI(){
   if(!gameState) return;
-  const phaseNames = {placement:'FÁZE 1 – Rozestavení', battle:'FÁZE 2 – Boj', finished:'Konec hry'};
-  document.getElementById('phase-badge').textContent = phaseNames[gameState.phase] || gameState.phase;
-
-  // Phase-specific UI
   const isPlacement = gameState.phase === 'placement';
-  document.getElementById('placement-actions').style.display = isPlacement ? 'flex' : 'none';
-  document.getElementById('battle-actions').style.display = isPlacement ? 'none' : 'flex';
-  document.getElementById('placement-bottom').style.display = isPlacement ? 'flex' : 'none';
-  document.getElementById('battle-bottom').style.display = isPlacement ? 'none' : 'flex';
 
-  // Mobile swipe bar shown only during placement (and not yet confirmed)
+  // Show/hide right-panel action sections
+  const bap = document.getElementById('battle-actions-panel');
+  const pbp = document.getElementById('placement-bottom-panel');
+  if(bap) bap.classList.toggle('visible', !isPlacement && gameState.phase !== 'finished');
+  if(pbp) pbp.classList.toggle('visible', isPlacement && !gameState.placement_confirmed[myPlayer]);
+
+  // Bottom confirm bar
+  document.getElementById('placement-actions').style.display = isPlacement ? 'flex' : 'none';
+
+  // Mobile swipe bar shown only during placement (not yet confirmed)
   const mp = document.getElementById('mobile-picker');
   mp.classList.toggle('show', isPlacement && !gameState.placement_confirmed[myPlayer]);
 
-  // Turn banner
-  const tb = document.getElementById('turn-banner');
-  tb.classList.remove('your-turn','opp-turn');
+  // Turn indicator (right panel, no background)
+  const ti = document.getElementById('turn-indicator');
+  ti.classList.remove('your-turn','opp-turn','neutral');
   if(gameState.phase === 'battle'){
     const isMyTurn = gameState.current_player === myPlayer;
-    tb.textContent = (isMyTurn ? 'Jsi na tahu' : 'Tah soupeře') + ` – Tah ${gameState.turn}`;
-    tb.classList.add(isMyTurn ? 'your-turn':'opp-turn');
+    ti.textContent = (isMyTurn ? 'Jsi na tahu' : 'Tah soupeře') + ` – Tah ${gameState.turn}`;
+    ti.classList.add(isMyTurn ? 'your-turn' : 'opp-turn');
+    if(isMyTurn && gameState.turn !== _lastTurnSoundTurn){ _lastTurnSoundTurn = gameState.turn; SFX.turn(); }
   }else if(gameState.phase === 'placement'){
     const conf = gameState.placement_confirmed[myPlayer];
-    tb.textContent = conf ? 'Rozestavení potvrzeno, čekáme na soupeře…' : 'Rozestav jednotky';
+    ti.textContent = conf ? 'Rozestavení potvrzeno, čekáme…' : 'Rozestav jednotky';
+    ti.classList.add('neutral');
   }else{
-    tb.textContent = gameState.winner === myPlayer ? '🏆 Vyhráls!' : '💀 Prohráls';
+    ti.textContent = gameState.winner === myPlayer ? '🏆 Vyhráls!' : '💀 Prohráls';
+    ti.classList.add(gameState.winner === myPlayer ? 'your-turn' : 'opp-turn');
+    if(!_finishSoundPlayed){
+      _finishSoundPlayed = true;
+      setTimeout(()=>{ gameState.winner === myPlayer ? SFX.win() : SFX.lose(); }, 200);
+    }
   }
 
   if(isPlacement){
@@ -863,6 +999,9 @@ function updateUI(){
     renderLog();
     updateBattleActions();
   }
+
+  updatePlayerInfo();
+  updateUnitCounts();
 
   // Speedup visibility
   const btnSpeed = document.getElementById('btn-speedup');
@@ -884,13 +1023,40 @@ function updateUI(){
 
   // Confirm button state
   if(isPlacement){
-    const cb = document.getElementById('confirm-btn');
+    const cb2 = document.getElementById('confirm-btn');
     const allFilled = countFilledHexes() === 51;
-    cb.disabled = gameState.placement_confirmed[myPlayer];
-    cb.textContent = gameState.placement_confirmed[myPlayer]
+    cb2.disabled = gameState.placement_confirmed[myPlayer];
+    cb2.textContent = gameState.placement_confirmed[myPlayer]
       ? '✓ Potvrzeno (čeká se)'
       : (allFilled ? '✓ Potvrdit rozestavení' : `✓ Potvrdit (${countFilledHexes()}/51)`);
   }
+}
+
+function updatePlayerInfo(){
+  if(!gameState) return;
+  const labels = gameState.player_labels || {};
+  const myLabel = labels[String(myPlayer)] || (me ? me.username : '?');
+  const oppPlayer = myPlayer === 1 ? 2 : 1;
+  const oppLabel = labels[String(oppPlayer)] || 'Soupeř';
+  document.getElementById('my-player-name').textContent = myLabel;
+  document.getElementById('opp-player-name').textContent = oppLabel;
+  const isMyTurn = gameState.phase === 'battle' && gameState.current_player === myPlayer;
+  const isOppTurn = gameState.phase === 'battle' && gameState.current_player !== myPlayer;
+  document.getElementById('my-player-row').classList.toggle('active-turn', isMyTurn);
+  document.getElementById('opp-player-row').classList.toggle('active-turn', isOppTurn);
+}
+
+function updateUnitCounts(){
+  if(!gameState) return;
+  const el = document.getElementById('unit-counts-content');
+  const myAlive = (gameState.my_units||[]).filter(u=>u.alive && u.placed).length;
+  const myDead  = (gameState.my_units||[]).filter(u=>!u.alive && u.placed).length;
+  const oppAlive = (gameState.enemy_units||[]).filter(u=>u.alive && u.placed).length;
+  const oppDead  = (gameState.enemy_units||[]).filter(u=>!u.alive && u.placed).length;
+  el.innerHTML = `
+    <div class="count-row"><span>Já:</span><span class="alive">${myAlive} ✓</span>&nbsp;<span class="dead">${myDead} ✗</span></div>
+    <div class="count-row opp"><span>Soupeř:</span><span class="alive">${oppAlive} ✓</span>&nbsp;<span class="dead">${oppDead} ✗</span></div>
+  `;
 }
 
 // ============================================================
@@ -1060,8 +1226,12 @@ function renderLog(){
   el.innerHTML = '';
   (gameState.log||[]).slice().reverse().forEach(e=>{
     const d = document.createElement('div');
-    d.className = 'entry';
-    d.innerHTML = `<span class="t">T${e.turn}</span>${e.msg}`;
+    let cls = 'entry';
+    let prefix = '';
+    if(e.player === myPlayer){ cls += ' own'; prefix = 'Já: '; }
+    else if(e.player && e.player !== myPlayer){ cls += ' opp'; prefix = 'Soupeř: '; }
+    d.className = cls;
+    d.innerHTML = `<span class="t">T${e.turn}</span>${prefix}${e.msg}`;
     el.appendChild(d);
   });
 }
@@ -1113,23 +1283,25 @@ const _css = (name) => {
 let TOKENS = {};
 function refreshTokens(){
   TOKENS = {
-    l0: _css('--level-0-body') || '#aed6f1',
-    l1: _css('--level-1-body') || '#abebc6',
-    l2: _css('--level-2-body') || '#f5cba7',
+    l0: _css('--level-0-body') || '#c8d4dc',
+    l1: _css('--level-1-body') || '#8fa0ae',
+    l2: _css('--level-2-body') || '#566370',
     revealed: _css('--revealed') || '#f1c40f',
     concealed: _css('--concealed') || '#1e6b3a',
     corrupted: _css('--corrupted') || '#c0392b',
-    p1flag: _css('--p1-flag') || '#2e86de',
-    p2flag: _css('--p2-flag') || '#c0392b',
-    zoneCitadel: _css('--zone-citadel') || '#3a2a1a',
-    zoneBattle:  _css('--zone-battlefield') || '#1a1f2e',
-    zoneMountain: _css('--zone-mountain') || '#353f5a',
-    border: _css('--border') || '#2a3450',
-    bg: _css('--bg') || '#0a0d16',
-    accent: _css('--accent') || '#4fd1ff',
-    accent2: _css('--accent-2') || '#ff5470',
-    gold: _css('--gold') || '#ffd466',
-    textDim: _css('--text-dim') || '#6c7b93',
+    p1flag: _css('--p1-flag') || '#00cc55',
+    p2flag: _css('--p2-flag') || '#ff8800',
+    zoneCitadel: _css('--zone-citadel') || '#3a0808',
+    zoneBattle:  _css('--zone-battlefield') || '#0d1225',
+    zoneMountain: _css('--zone-mountain') || '#2a3450',
+    zoneP1: [_css('--zone-p1-l0')||'#0b1f10', _css('--zone-p1-l1')||'#091808', _css('--zone-p1-l2')||'#071208'],
+    zoneP2: [_css('--zone-p2-l0')||'#1f150b', _css('--zone-p2-l1')||'#180e07', _css('--zone-p2-l2')||'#120a05'],
+    border: _css('--border') || '#1a2744',
+    bg: _css('--bg') || '#07080f',
+    accent: _css('--accent') || '#00e5ff',
+    accent2: _css('--accent-2') || '#ff3d3d',
+    gold: _css('--gold') || '#ffd700',
+    textDim: _css('--text-dim') || '#5a6a7a',
   };
 }
 function levelColorSolid(level){
@@ -1139,9 +1311,8 @@ function zoneColor(zt, zp, zl){
   if(zt === 'citadel') return TOKENS.zoneCitadel;
   if(zt === 'battlefield') return TOKENS.zoneBattle;
   if(zt === 'level'){
-    // Very faint tint of the level color for zone background (darker)
-    const base = [TOKENS.l0, TOKENS.l1, TOKENS.l2][zl] || TOKENS.zoneBattle;
-    return darken(base, 0.80);
+    const zones = (zp === 1) ? TOKENS.zoneP1 : TOKENS.zoneP2;
+    return zones[zl] || TOKENS.zoneBattle;
   }
   return TOKENS.zoneBattle;
 }
@@ -1319,19 +1490,16 @@ function drawUnit(u){
   const inner = u.is_corrupted ? TOKENS.corrupted : null;
   const teamColor = isMine ? TOKENS.p1flag : TOKENS.p2flag;
 
-  // 1) Outermost TEAM ring — bold color, biggest visual cue
-  drawHex(p.x, p.y, HEX_SIZE*0.95, null, teamColor, 4);
-  // 2) Level-colored body
-  drawHex(p.x, p.y, HEX_SIZE*0.82, body, null);
-  // 3) Reveal state border (green = concealed, yellow = revealed)
-  drawHex(p.x, p.y, HEX_SIZE*0.82, null, outer, 2);
-  // 4) Red inner ring if under corruptor
-  if(inner){ drawHex(p.x, p.y, HEX_SIZE*0.62, null, inner, 2); }
-
-  // 5) Team banner stripe at TOP of hex (extra redundancy for color-blind friendliness)
-  ctx.fillStyle = teamColor;
-  const bx = p.x - HEX_SIZE*0.45, by = p.y - HEX_SIZE*0.78;
-  ctx.fillRect(bx, by, HEX_SIZE*0.9, HEX_SIZE*0.22);
+  // 1) Filled body background (team color tint)
+  drawHex(p.x, p.y, HEX_SIZE*0.95, teamColor, null);
+  // 2) Level-colored body (smaller, sits inside team color)
+  drawHex(p.x, p.y, HEX_SIZE*0.78, body, null);
+  // 3) Team color ring
+  drawHex(p.x, p.y, HEX_SIZE*0.95, null, teamColor, 3);
+  // 4) Reveal state border (green = concealed, yellow = revealed)
+  drawHex(p.x, p.y, HEX_SIZE*0.78, null, outer, 2);
+  // 5) Red inner ring if under corruptor
+  if(inner){ drawHex(p.x, p.y, HEX_SIZE*0.58, null, inner, 2); }
 
   // 6) Label + attack
   ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -1464,6 +1632,7 @@ async function handleBattleClick(cell){
   if(intent === 'move'){
     const mv = (aa.moves||[]).find(x=>x.unit_id===sel.id);
     if(mv && mv.targets.some(t=>t.col===cell.col && t.row===cell.row)){
+      SFX.move();
       await api('POST', `/api/game/${currentGameId}/move`,
         {unit_id:sel.id, col:cell.col, row:cell.row});
       setSelectedUnit(null);
@@ -1475,9 +1644,11 @@ async function handleBattleClick(cell){
     if(!clickedUnit){ toast('Vyber nepřátelskou jednotku'); return; }
     const at = (aa.attacks||[]).find(x=>x.unit_id===sel.id);
     if(at && at.targets.some(t=>t.unit_id===clickedUnit.id)){
+      SFX.attack();
       const r = await api('POST', `/api/game/${currentGameId}/attack`,
         {attacker_id:sel.id, target_id:clickedUnit.id});
       if(r.ok && r.wasted) toast('Zmařený tah – '+translateWaste(r.events));
+      if(r.ok && (r.events||[]).some(e=>e.type && e.type.includes('kill'))) SFX.destroy();
       setSelectedUnit(null);
       refreshState();
     }else toast('Tento cíl není v dosahu');
@@ -1488,11 +1659,13 @@ async function handleBattleClick(cell){
     if(!sp){ toast('Žádné speciály'); return; }
     const candidate = clickedUnit ? sp.actions.find(a=>a.target_id===clickedUnit.id) : null;
     if(candidate){
+      SFX.special();
       const r = await api('POST', `/api/game/${currentGameId}/special`,
         {unit_id:sel.id, action:candidate.action, target_id:candidate.target_id});
       if(r.ok && r.events && r.events.length){
         const ev = r.events[0];
         if(ev.type === 'weaken_wasted') toast('Zmařený tah – cíl už na minimu');
+        if(ev.type && ev.type.includes('kill')) SFX.destroy();
       }
       setSelectedUnit(null);
       refreshState();
@@ -1505,7 +1678,7 @@ function translateErr(code){
     max_count_reached:'vyčerpaný max počet jednotek',
     special_cap_reached:'max speciálů v tomto levelu',
     artillery_level0_only:'dělostřelecká baterie jen na L0',
-    one_terminator_per_level:'1 Terminátor na level',
+    one_cyborg_per_level:'1 Kyborg na level',
     not_your_zone:'cizí zóna',
     hex_occupied:'pole je obsazené',
     hexes_not_filled:'neobsazená pole',
@@ -1529,10 +1702,12 @@ function findUnitAt(col, row){
 // ============================================================
 function renderInfoPanel(u){
   const el = document.getElementById('info-content');
+  const _p1c = getComputedStyle(document.documentElement).getPropertyValue('--p1-flag').trim() || '#00cc55';
+  const _p2c = getComputedStyle(document.documentElement).getPropertyValue('--p2-flag').trim() || '#ff8800';
   if(!u || u.type === 'unknown'){
     el.classList.remove('hint');
     el.innerHTML = `
-      <div class="unit-name"><span class="flag" style="background:${u ? (u.owner===myPlayer?'#2e86de':'#c0392b') : '#555'}"></span>
+      <div class="unit-name"><span class="flag" style="background:${u ? (u.owner===myPlayer?_p1c:_p2c) : '#555'}"></span>
         Neznámá jednotka</div>
       <div class="desc">Soupeřova zahalená jednotka. Odhalíš ji průzkumným dronem nebo bojem.</div>
     `;
@@ -1544,7 +1719,7 @@ function renderInfoPanel(u){
     ? '<span class="reveal-pill rev">Odhalena</span>'
     : '<span class="reveal-pill hid">Zahalena</span>';
   const corr = u.is_corrupted ? '<span class="reveal-pill" style="background:#c0392b;color:#fff">Koruptor</span>' : '';
-  const flagColor = u.owner===myPlayer ? '#2e86de' : '#c0392b';
+  const flagColor = u.owner===myPlayer ? _p1c : _p2c;
 
   el.classList.remove('hint');
   el.innerHTML = `

@@ -10,7 +10,7 @@ Strategy tiers (kept simple; can be extended later):
   Placement:
     - L0 (9 hexes): defenders – mostly engineers + 2 mine_fields + arty at L0
     - L1 (17 hexes): mid-field – privates, scouts, supports
-    - L2 (25 hexes): strike force – tanks, paratroopers, helicopters, terminator
+    - L2 (25 hexes): strike force – tanks, paratroopers, helicopters, cyborg
     - Specials distributed per-level cap (2+L)
   Battle:
     - Score each legal action for current player, pick highest
@@ -53,9 +53,9 @@ class AI:
         self.player = player
         self.enemy = 3 - player
         self.decision_log: List[dict] = []
-        # PATCH (game 6): track last-acted turn per unit to prevent "stuck" units.
-        # Games 4-6: helicopters and recon drone had 0 actions across 100+ turns.
         self.last_acted_turn: dict = {}   # unit_id -> gs.turn of last action
+        # Track position before each move to penalise moving back (prevents oscillation)
+        self.last_position: dict = {}     # unit_id -> (col, row) before last move
 
     def _idle_turns(self, gs: GameState, uid: str) -> int:
         """How many turns this unit has been idle. Units never used have idle=turn."""
@@ -96,16 +96,17 @@ class AI:
             ("recon_drone", 1, 1),
             ("jammer",      1, 1),
             ("mine_field",  1, 1),
-            # L2 – 25 hexes: 5 para + 4 tanks + 1 term + 1 hacker + 4 heli + 4 fighters + 2 engineer + 4 specials
+            # L2 – 25 hexes: 5 para + 4 tanks + 1 term + 1 hacker + trainer near boosting targets
+            # + 4 heli + 4 fighters + 2 engineer + specials
             ("paratrooper", 2, 5),
             ("tank",        2, 4),
-            ("terminator",  2, 1),
+            ("cyborg",      2, 1),
             ("hacker",      2, 1),
-            ("helicopter",  2, 4),
-            ("fighter",     2, 4),
+            ("trainer",     2, 1),  # placed early so it sits adjacent to boosted ground units
             ("engineer",    2, 2),
             ("attack_drone", 2, 1),
-            ("trainer",     2, 1),
+            ("helicopter",  2, 4),
+            ("fighter",     2, 4),
             ("corruptor",   2, 1),
             ("mine_field",  2, 1),
         ]
@@ -205,9 +206,12 @@ class AI:
         turn_log["chosen"] = {**best_action, "score": round(best_score, 2)}
 
         if best_action["kind"] == "move":
-            gs.move_unit(self.player, best_action["unit_id"],
-                         best_action["col"], best_action["row"])
-            self.last_acted_turn[best_action["unit_id"]] = gs.turn
+            uid = best_action["unit_id"]
+            u = gs.unit(uid)
+            if u:
+                self.last_position[uid] = (u.col, u.row)
+            gs.move_unit(self.player, uid, best_action["col"], best_action["row"])
+            self.last_acted_turn[uid] = gs.turn
         elif best_action["kind"] == "attack":
             gs.attack_unit(self.player, best_action["unit_id"],
                            best_action["target_id"])
@@ -228,6 +232,10 @@ class AI:
         cur_dist = hex_distance(u.col, u.row, enemy_citadel[0], enemy_citadel[1])
         new_dist = hex_distance(col, row, enemy_citadel[0], enemy_citadel[1])
         advance = cur_dist - new_dist
+        # Penalise moving back to where this unit just came from (prevents oscillation)
+        prev = self.last_position.get(u.id)
+        if prev and prev == (col, row):
+            score -= 18
 
         # Late-game urgency: after turn 10, ground rushers get a big push
         late_game = max(0, gs.turn - 10) * 0.6  # grows with stalemate length
@@ -252,9 +260,9 @@ class AI:
             defense_pull = max(0, 5 - dist_to_own_cit) * 2.0
 
         if u.category == "ground":
-            if u.type in ("terminator", "tank"):
+            if u.type in ("cyborg", "tank"):
                 # Moderate Terminator bonus (too high → predictable rush into Hacker)
-                term_push = 2 if u.type == "terminator" else 0
+                term_push = 2 if u.type == "cyborg" else 0
                 score += advance * (12 + late_game) + u.attack * 0.6 + adj_enemy_bonus + term_push
                 if u.type == "tank":
                     score += defense_pull * 0.5
@@ -297,9 +305,9 @@ class AI:
                 if idle > 10 and new_dist_to_own > dist_to_own:
                     score += min(15, (idle - 10) * 1.5)
             elif u.type == "hacker":
-                # Hunt revealed terminators
+                # Hunt revealed cyborgs
                 terms = [e for e in gs._player_units(self.enemy, placed=True)
-                         if e.type == "terminator" and e.revealed]
+                         if e.type == "cyborg" and e.revealed]
                 if terms:
                     d = min(hex_distance(col, row, t.col, t.row) for t in terms)
                     score += max(0, 8 - d) * 2
@@ -389,7 +397,7 @@ class AI:
         if tgt.type == "recon_drone":
             recon_bonus = 30 if u.type == "helicopter" else 20
 
-        if u.type == "hacker" and tgt.type == "terminator":
+        if u.type == "hacker" and tgt.type == "cyborg":
             return 50
         if u.type == "fighter" and tgt.category != "air":
             return -30
@@ -450,7 +458,7 @@ class AI:
             # Only convert when a Terminator is revealed; never waste conversions blindly
             my_cit = CITADELS[self.player]
             terms = [e for e in gs._player_units(self.enemy, placed=True)
-                     if e.type == "terminator" and e.revealed]
+                     if e.type == "cyborg" and e.revealed]
             for t in terms:
                 d = hex_distance(t.col, t.row, my_cit[0], my_cit[1])
                 if d <= 6:
@@ -480,7 +488,7 @@ class AI:
 
         if act == "conceal":
             tgt = gs.unit(action["target_id"])
-            if tgt and tgt.type in ("terminator", "tank", "hacker"):
+            if tgt and tgt.type in ("cyborg", "tank", "hacker"):
                 return 14
             return 6
 

@@ -200,10 +200,10 @@ UNIT_DEFS = {
         "std_attack_targets": ("ground", "special"), "can_be_std_target": True,
         "corruptor_effect": "attack", "trainer_effect": "attack",
     },
-    "terminator": {
+    "cyborg": {
         "base_attack": 8, "movement": 1, "category": "ground", "is_special": False,
         "level_scales_attack": True, "base_range": None, "range_scales_level": False,
-        "max_count": 1, "name_cs": "Terminátor", "abbr": "Te",
+        "max_count": 1, "name_cs": "Kyborg", "abbr": "Ky",
         "std_attack_targets": ("ground", "special"), "can_be_std_target": True,
         "corruptor_effect": "attack", "trainer_effect": "attack",
     },
@@ -229,7 +229,7 @@ UNIT_DEFS = {
         "corruptor_effect": "attack", "trainer_effect": "none",
     },
     "mine_field": {
-        "base_attack": 0, "movement": 0, "category": "special", "is_special": True,
+        "base_attack": 0, "movement": 0, "category": "ground", "is_special": False,
         "level_scales_attack": False, "base_range": None, "range_scales_level": False,
         "max_count": 8, "name_cs": "Minové pole", "abbr": "Mi",
         "std_attack_targets": (), "can_be_std_target": True,  # can be targeted; resolution special
@@ -280,14 +280,14 @@ UNIT_DEFS = {
 }
 
 
-# Per-level special cap (mine_field counts as special)
+# Per-level special cap (mine_field is now ground, does NOT count against special cap)
 def special_cap(level: int) -> int:
     return 2 + level
 
 
 # Per-level per-type caps for specific units that are restricted "max 1 per level"
-# (assassin removed; keeping terminator restriction)
-PER_LEVEL_UNIQUE = {"terminator"}
+# (assassin removed; keeping cyborg restriction)
+PER_LEVEL_UNIQUE = {"cyborg"}
 
 # Hacker conversions per game per player (trainer ability)
 HACKER_CONVERSIONS_PER_GAME = 2
@@ -682,11 +682,11 @@ class GameState:
 
     def get_reachable(self, u: Unit) -> Set[Tuple[int, int]]:
         """Hexes this unit could legally stop on this turn.
-        Fighter may path through own units; others cannot cross any occupied hex."""
+        Fighter and trainer may path through own units; others cannot cross any occupied hex."""
         if u.movement == 0:
             return set()
         is_air = u.category == "air"
-        is_fighter = u.type == "fighter"
+        can_path_through_allies = u.type in ("fighter", "trainer")
         visited = {(u.col, u.row): 0}
         frontier = [(u.col, u.row, 0)]
         reachable = set()
@@ -708,12 +708,11 @@ class GameState:
                     # Enemy blocks everyone
                     if occ.owner != u.owner:
                         continue
-                    # Friendly: only fighter may path through
-                    if is_fighter:
+                    # Friendly: fighter and trainer may path through, but cannot stop on friendly
+                    if can_path_through_allies:
                         if (nc, nr) not in visited or visited[(nc, nr)] > new_cost:
                             visited[(nc, nr)] = new_cost
                             frontier.append((nc, nr, new_cost))
-                        # But cannot stop on friendly
                         continue
                     else:
                         continue
@@ -811,7 +810,7 @@ class GameState:
             events.append({"type": "attack_noop"})
         return events
 
-    def _resolve_hacker_terminator(self, att: Unit, tgt: Unit) -> list:
+    def _resolve_hacker_cyborg(self, att: Unit, tgt: Unit) -> list:
         self._reveal(att)
         self._reveal(tgt)
         self._kill(tgt)
@@ -850,8 +849,8 @@ class GameState:
 
         if tgt.type == "mine_field":
             events = self._resolve_mine_attack(att, tgt)
-        elif att.type == "hacker" and tgt.type == "terminator":
-            events = self._resolve_hacker_terminator(att, tgt)
+        elif att.type == "hacker" and tgt.type == "cyborg":
+            events = self._resolve_hacker_cyborg(att, tgt)
         else:
             events = self._resolve_melee(att, tgt)
 
