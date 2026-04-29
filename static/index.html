@@ -1288,13 +1288,6 @@ const ctx = canvas.getContext('2d');
 let HEX_SIZE = 30;
 let boardOffset = {x:0, y:0};
 
-const EVEN_R_DIRS = [[-1,-1],[0,-1],[-1,0],[1,0],[-1,1],[0,1]];
-const ODD_R_DIRS  = [[0,-1],[1,-1],[-1,0],[1,0],[0,1],[1,1]];
-function hexNeighbors(c,r){
-  const d = r%2===1 ? ODD_R_DIRS : EVEN_R_DIRS;
-  return d.map(([dc,dr])=>[c+dc, r+dr]);
-}
-
 function hexCenter(col, row){
   const h = HEX_SIZE;
   const w = Math.sqrt(3)*h;
@@ -1591,17 +1584,6 @@ function draw(){
     if(!u.placed || !u.alive) return;
     drawUnit(u);
   });
-
-  // Influence overlays (v1.2) — drawn last so the markers are always visible
-  // even on top of unit graphics. Each "vliv" gets a small colored dot at the
-  // top of every hex within the source unit's effective range.
-  if(_influenceMap.size){
-    _influenceMap.forEach((entry, key) => {
-      const [c, r] = key.split(',').map(Number);
-      const p = hexCenter(c, r);
-      drawInfluenceMarkers(p, entry);
-    });
-  }
 
   // Last-move trail (fades over ~2s)
   if(lastMoveMarker){
