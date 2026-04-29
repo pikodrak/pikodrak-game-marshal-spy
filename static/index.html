@@ -39,10 +39,10 @@
   --revealed:      #f1c40f;    /* yellow */
   --corrupted:     #c0392b;    /* red inner ring */
 
-  /* influence accents — one per "vliv": koruptor / odhalení / trenér (v1.2) */
-  --inf-corruptor: #c0392b;    /* red — matches corrupted hue */
-  --inf-revealer:  #f1c40f;    /* yellow — matches revealed hue */
-  --inf-trainer:   #27c463;    /* green — distinct from player flag green */
+  /* influence accents — one per "vliv" per Designer spec on ITI-120 */
+  --influence-corruptor: #9b59b6;   /* purple — corruption / poison */
+  --influence-reveal:    #f1c40f;   /* yellow — recon / "these cells get lit" */
+  --influence-trainer:   #1abc9c;   /* teal   — positive boost / growth */
 
   /* player flags — green vs orange per spec */
   --p1-flag:       #00cc55;    /* green (you) */
@@ -1346,9 +1346,9 @@ function refreshTokens(){
     accent2: _css('--accent-2') || '#ff3d3d',
     gold: _css('--gold') || '#ffd700',
     textDim: _css('--text-dim') || '#5a6a7a',
-    infCorruptor: _css('--inf-corruptor') || '#c0392b',
-    infRevealer:  _css('--inf-revealer')  || '#f1c40f',
-    infTrainer:   _css('--inf-trainer')   || '#27c463',
+    influCorruptor: _css('--influence-corruptor') || '#9b59b6',
+    influReveal:    _css('--influence-reveal')    || '#f1c40f',
+    influTrainer:   _css('--influence-trainer')   || '#1abc9c',
   };
 }
 function levelColorSolid(level){
@@ -1404,108 +1404,49 @@ function rgba(hex, alpha){
 }
 
 // ============================================================
-// INFLUENCE OVERLAYS (v1.2) — koruptor / odhalení / trenér
-// Each "vliv" maps to a color + dot indicator drawn at the top
-// of every hex within that unit's effective range. Hidden enemy
-// units don't expose their AOE (their type is "unknown").
+// INFLUENCE SYMBOLS (ITI-120, Designer spec) — koruptor / odhalení / trenér
+// Drawn on the unit's own hex (Layer 2.5 of drawUnit), so each revealed
+// influence-special unit is identifiable at a glance.
+// AOE halos are emitted only when the player selects the unit with
+// intent === 'special' (see draw() special-targets branch).
 // ============================================================
-const INFLUENCE_TYPE_MAP = {
-  corruptor:    'corruptor',
-  trainer:      'trainer',
-  recon_drone:  'revealer',
-  attack_drone: 'revealer',
-};
-function getInfluenceColor(kind){
-  if(kind === 'corruptor') return TOKENS.infCorruptor || '#c0392b';
-  if(kind === 'trainer')   return TOKENS.infTrainer   || '#27c463';
-  if(kind === 'revealer')  return TOKENS.infRevealer  || '#f1c40f';
-  return '#888';
-}
-function _buildBoardCellSet(){
-  const s = new Set();
-  if(!gameState || !gameState.board) return s;
-  for(const c of gameState.board){ s.add(`${c.col},${c.row}`); }
-  return s;
-}
-function hexCellsInRange(c0, r0, range, cellSet){
-  const result = [[c0, r0, 0]];
-  if(range <= 0) return result;
-  const visited = new Set([`${c0},${r0}`]);
-  let frontier = [[c0, r0]];
-  for(let d=1; d<=range; d++){
-    const next = [];
-    for(const [c, r] of frontier){
-      for(const [nc, nr] of hexNeighbors(c, r)){
-        const k = `${nc},${nr}`;
-        if(visited.has(k)) continue;
-        if(!cellSet.has(k)) continue;
-        visited.add(k);
-        next.push([nc, nr]);
-        result.push([nc, nr, d]);
-      }
-    }
-    frontier = next;
-  }
-  return result;
-}
-function computeInfluenceMap(){
-  const m = new Map();
-  if(!gameState) return m;
-  const cellSet = _buildBoardCellSet();
-  const all = [...(gameState.my_units||[]), ...(gameState.enemy_units||[])];
-  for(const u of all){
-    if(!u.placed || !u.alive) continue;
-    if(u.type === 'unknown') continue;
-    const kind = INFLUENCE_TYPE_MAP[u.type];
-    if(!kind) continue;
-    const range = Math.max(0, u.effective_range|0);
-    const cells = hexCellsInRange(u.col, u.row, range, cellSet);
-    for(const [c, r, d] of cells){
-      const k = `${c},${r}`;
-      let entry = m.get(k);
-      if(!entry){ entry = { kinds: new Set(), hosts: new Set() }; m.set(k, entry); }
-      entry.kinds.add(kind);
-      if(d === 0) entry.hosts.add(kind);
-    }
-  }
-  return m;
-}
-function drawInfluenceMarkers(p, entry){
-  const order = ['corruptor', 'revealer', 'trainer'];
-  const present = order.filter(k => entry.kinds.has(k));
-  if(!present.length) return;
-  const dotR = Math.max(2, HEX_SIZE * 0.14);
-  const gap  = dotR * 2.1;
-  const startX = p.x - ((present.length - 1) * gap) / 2;
-  const y = p.y - HEX_SIZE * 0.72;
-  for(let i = 0; i < present.length; i++){
-    const kind = present[i];
-    const x = startX + i * gap;
-    const isHost = entry.hosts.has(kind);
+const INFLUENCE_TYPES = ['corruptor', 'recon_drone', 'trainer'];
+function drawInfluenceSymbol(type, cx, cy, size){
+  const sy = cy - size * 0.44;   // top-inside of the hex
+  const r  = size * 0.17;
+  ctx.save();
+  if(type === 'corruptor'){
+    // Circled X in purple
+    ctx.strokeStyle = TOKENS.influCorruptor;
+    ctx.lineWidth = size * 0.07;
+    ctx.beginPath(); ctx.arc(cx, sy, r, 0, Math.PI * 2); ctx.stroke();
+    const d = r * 0.58;
     ctx.beginPath();
-    ctx.arc(x, y, dotR, 0, Math.PI*2);
-    ctx.fillStyle = getInfluenceColor(kind);
-    ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = '#000';
+    ctx.moveTo(cx - d, sy - d); ctx.lineTo(cx + d, sy + d);
+    ctx.moveTo(cx + d, sy - d); ctx.lineTo(cx - d, sy + d);
     ctx.stroke();
-    if(isHost){
-      ctx.beginPath();
-      ctx.arc(x, y, dotR*0.45, 0, Math.PI*2);
-      ctx.fillStyle = '#fff';
-      ctx.fill();
+  } else if(type === 'recon_drone'){
+    // Bullseye in yellow
+    ctx.strokeStyle = TOKENS.influReveal;
+    ctx.lineWidth = size * 0.06;
+    [0.38, 0.72, 1.0].forEach(rf => {
+      ctx.beginPath(); ctx.arc(cx, sy, r * rf, 0, Math.PI * 2); ctx.stroke();
+    });
+  } else if(type === 'trainer'){
+    // 4-pointed star in teal
+    ctx.fillStyle = TOKENS.influTrainer;
+    const outer = r, inner = r * 0.38;
+    ctx.beginPath();
+    for(let i = 0; i < 8; i++){
+      const ang = Math.PI / 4 * i - Math.PI / 2;
+      const rad = i % 2 === 0 ? outer : inner;
+      const px = cx + Math.cos(ang) * rad;
+      const py = sy + Math.sin(ang) * rad;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
     }
+    ctx.closePath(); ctx.fill();
   }
-}
-function drawLevelMarker(p, level){
-  // Per-level inner pattern in addition to the brightness gradient.
-  // L0 stays clean. L1 → one inner hex outline. L2 → two inner hex outlines.
-  if(!level) return;
-  const stroke = rgba(TOKENS.textDim, 0.5);
-  drawHex(p.x, p.y, HEX_SIZE * 0.62, null, stroke, 1);
-  if(level >= 2){
-    drawHex(p.x, p.y, HEX_SIZE * 0.36, null, stroke, 1);
-  }
+  ctx.restore();
 }
 
 // Board column/row perimeter labels (slide 1 spec: 1–16 along each axis).
@@ -1567,15 +1508,6 @@ function sendChat(){
 function draw(){
   if(!gameState || !canvas) return;
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  // Pre-compute occupied cells + influence map (used by overlay passes below)
-  const _occupied = new Set();
-  for(const u of (gameState.my_units||[])){
-    if(u.placed && u.alive) _occupied.add(`${u.col},${u.row}`);
-  }
-  for(const u of (gameState.enemy_units||[])){
-    if(u.placed && u.alive) _occupied.add(`${u.col},${u.row}`);
-  }
-  const _influenceMap = computeInfluenceMap();
   // Board cells
   gameState.board.forEach(cell=>{
     const {col,row,zone_type,zone_player,zone_level,is_mountain} = cell;
@@ -1586,9 +1518,6 @@ function draw(){
       ctx.fillStyle = TOKENS.textDim; ctx.font = `${HEX_SIZE}px sans-serif`;
       ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillText('▲', p.x, p.y);
-    } else if(zone_type === 'level' && !_occupied.has(`${col},${row}`)){
-      // Per-level inner pattern (only on empty level hexes so units stay readable)
-      drawLevelMarker(p, zone_level);
     }
     if(zone_type === 'citadel'){
       ctx.fillStyle = TOKENS.gold; ctx.font = `bold ${HEX_SIZE*0.9}px sans-serif`;
@@ -1623,9 +1552,15 @@ function draw(){
     }else if(intent === 'special'){
       const sp = (aa.specials||[]).find(x=>x.unit_id===sel.id);
       if(sp){
+        const influenceHalo = {
+          corruptor:   { fill: rgba(TOKENS.influCorruptor, 0.20), stroke: TOKENS.influCorruptor },
+          recon_drone: { fill: rgba(TOKENS.influReveal,    0.20), stroke: TOKENS.influReveal    },
+          trainer:     { fill: rgba(TOKENS.influTrainer,   0.20), stroke: TOKENS.influTrainer   },
+        }[sel?.type];
+        const halo = influenceHalo || { fill: rgba(TOKENS.gold, 0.18), stroke: TOKENS.gold };
         sp.actions.forEach(t=>{
           const p = hexCenter(t.col, t.row);
-          drawHex(p.x, p.y, HEX_SIZE-2, rgba(TOKENS.gold, 0.18), TOKENS.gold, 2);
+          drawHex(p.x, p.y, HEX_SIZE-2, halo.fill, halo.stroke, 2);
         });
       }
     }
@@ -1727,6 +1662,10 @@ function drawUnit(u){
   drawHex(p.x, p.y, HEX_SIZE*0.95, teamColor, null);
   // 2) Level-colored body (smaller, sits inside team color)
   drawHex(p.x, p.y, HEX_SIZE*0.78, body, null);
+  // 2.5) Influence type symbol (revealed special units only — hidden "?" units skip)
+  if(!isHidden && INFLUENCE_TYPES.includes(u.type)){
+    drawInfluenceSymbol(u.type, p.x, p.y, HEX_SIZE);
+  }
   // 3) Team color ring
   drawHex(p.x, p.y, HEX_SIZE*0.95, null, teamColor, 3);
   // 4) Reveal state border (green = concealed, yellow = revealed)
