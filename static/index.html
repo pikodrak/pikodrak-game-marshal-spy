@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Maršál & Špión – v1.0</title>
+<title>Maršál & Špión – v1.2</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
 /* ============================================================
@@ -38,6 +38,11 @@
   --concealed:     #1e6b3a;    /* dark green */
   --revealed:      #f1c40f;    /* yellow */
   --corrupted:     #c0392b;    /* red inner ring */
+
+  /* influence accents — one per "vliv": koruptor / odhalení / trenér (v1.2) */
+  --inf-corruptor: #c0392b;    /* red — matches corrupted hue */
+  --inf-revealer:  #f1c40f;    /* yellow — matches revealed hue */
+  --inf-trainer:   #27c463;    /* green — distinct from player flag green */
 
   /* player flags — green vs orange per spec */
   --p1-flag:       #00cc55;    /* green (you) */
@@ -155,9 +160,32 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
 #board-area{flex:1;position:relative;background:var(--bg);overflow:hidden}
 #board-canvas{display:block;width:100%;height:100%;touch-action:none}
 
-#right-panel{width:var(--panel-w);min-width:var(--panel-w);background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+/* Persistent right-hand command panel (v1.2): fixed-position, visible across lobby / formation editor / in-game */
+#right-panel{position:fixed;top:0;right:0;width:var(--panel-w);height:100vh;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;z-index:50}
+#right-panel.hidden{display:none}
+body.with-panel{padding-right:var(--panel-w)}
+/* Internal panels in replay screen keep their inline layout */
+#replay-panel{width:var(--panel-w);min-width:var(--panel-w);background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 .panel-title{padding:6px 12px;font-family:var(--font-head);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:2px;border-bottom:1px solid var(--border-dim);font-weight:700;flex-shrink:0}
 .panel-body{overflow-y:auto;padding:8px 12px}
+
+/* phase indicator (with background panel) — distinct from no-background turn-indicator */
+#panel-phase{flex-shrink:0;padding:7px 12px;background:var(--panel-2);border-bottom:1px solid var(--border);font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:2px;text-align:center}
+
+/* Mode-based section visibility (lobby/forms hide irrelevant elements) */
+#right-panel.mode-lobby #info-bar,
+#right-panel.mode-lobby #action-section,
+#right-panel.mode-lobby #turn-indicator,
+#right-panel.mode-lobby #log-bar,
+#right-panel.mode-lobby #unit-counts-bar,
+#right-panel.mode-lobby #opp-player-row,
+#right-panel.mode-lobby .player-timer{display:none}
+#right-panel.mode-forms #log-bar,
+#right-panel.mode-forms #chat-bar,
+#right-panel.mode-forms #unit-counts-bar,
+#right-panel.mode-forms #opp-player-row,
+#right-panel.mode-forms .player-timer,
+#right-panel.mode-forms #turn-indicator{display:none}
 
 /* players bar */
 #players-bar{flex-shrink:0;border-bottom:1px solid var(--border)}
@@ -167,6 +195,8 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
 .player-dot.my{background:var(--p1-flag)}
 .player-dot.opp{background:var(--p2-flag)}
 .player-name{flex:1;font-weight:600;color:var(--text)}
+.player-elo{color:var(--gold);font-family:var(--font-mono);font-size:10px}
+.player-elo:empty{display:none}
 .player-timer{color:var(--gold);font-family:var(--font-mono);font-size:11px}
 .player-row.active-turn .player-name{color:var(--green)}
 
@@ -268,12 +298,6 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
 #toast.active{display:block}
 
 /* ============================================================
-   FORMATIONS MANAGER
-   ============================================================ */
-#forms-screen{flex-direction:column}
-#forms-screen #top-bar{background:var(--panel);border-bottom:1px solid var(--border)}
-
-/* ============================================================
    ADMIN
    ============================================================ */
 #admin-screen{flex-direction:column;padding:16px;overflow:auto}
@@ -302,7 +326,8 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
   .auth-box{padding:22px 18px}
 
   /* game: no right panel on mobile; show mobile picker during placement */
-  #right-panel{display:none !important}
+  #right-panel,#replay-panel{display:none !important}
+  body.with-panel{padding-right:0}
   #mobile-picker.show{display:block}
 
   #top-bar{font-size:11px;padding:0 6px;gap:6px}
@@ -321,7 +346,7 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
 <div id="auth-screen" class="screen active">
   <div class="auth-box">
     <h1>MARŠÁL &amp; ŠPIÓN</h1>
-    <div class="sub">v1.0</div>
+    <div class="sub">v1.2</div>
     <div class="auth-tabs">
       <button id="tab-login" class="active" onclick="showAuthTab('login')">Přihlášení</button>
       <button id="tab-reg" onclick="showAuthTab('reg')">Registrace</button>
@@ -386,83 +411,6 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
     <div id="board-area">
       <canvas id="board-canvas"></canvas>
     </div>
-
-    <div id="right-panel">
-      <!-- Players bar -->
-      <div id="players-bar">
-        <div class="player-row" id="my-player-row">
-          <span class="player-dot my"></span>
-          <span class="player-name" id="my-player-name">—</span>
-          <span class="player-timer" id="my-player-timer"></span>
-        </div>
-        <div class="player-row" id="opp-player-row">
-          <span class="player-dot opp"></span>
-          <span class="player-name" id="opp-player-name">Soupeř</span>
-          <span class="player-timer" id="opp-player-timer"></span>
-        </div>
-      </div>
-
-      <!-- Unit info -->
-      <div id="info-bar">
-        <div class="panel-title">Vybraná jednotka</div>
-        <div id="info-content"><div class="hint">Najeď na jednotku</div></div>
-      </div>
-
-      <!-- Action section — swaps by phase -->
-      <div id="action-section">
-        <!-- Battle action buttons -->
-        <div id="battle-actions-panel">
-          <div class="sel-unit-info" id="sel-unit-label">Vyber vlastní jednotku</div>
-          <div class="action-row" style="padding:4px 8px;gap:4px">
-            <button class="btn primary" id="btn-move" onclick="setIntent('move')">🚶 Pohyb</button>
-            <button class="btn" id="btn-attack" onclick="setIntent('attack')">⚔ Útok</button>
-          </div>
-          <div class="action-row" style="padding:0 8px 4px;gap:4px">
-            <button class="btn" id="btn-special" onclick="setIntent('special')">✨ Speciál</button>
-            <button class="btn ghost" onclick="passTurn()">↷ Pas</button>
-            <button class="btn ghost" id="btn-speedup" onclick="requestSpeedup()" style="display:none">⏩</button>
-          </div>
-        </div>
-        <!-- Placement controls -->
-        <div id="placement-bottom-panel">
-          <div class="panel-title">🎖 Formace</div>
-          <div id="form-loader"></div>
-          <div class="panel-title">⬢ Jednotky</div>
-          <div id="unit-picker"></div>
-          <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-top:1px solid var(--border-dim)">
-            <button class="btn ghost" style="font-size:10px;padding:4px 6px" onclick="clearPlacement()">🗑</button>
-            <button class="btn ghost" style="font-size:10px;padding:4px 6px" onclick="randomPlace()">🎲</button>
-            <button class="btn ghost" style="font-size:10px;padding:4px 6px" onclick="savePresetDialog()">💾</button>
-            <span id="hexes-filled" style="margin-left:auto;font-size:10px;color:var(--text-dim)">—/51</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Turn / phase indicator (no background panel per spec) -->
-      <div id="turn-indicator" class="neutral">—</div>
-
-      <!-- Log -->
-      <div id="log-bar">
-        <div class="panel-title">📜 Log</div>
-        <div id="log-panel"></div>
-      </div>
-
-      <!-- Chat (placeholder — no backend yet) -->
-      <div id="chat-bar">
-        <div class="panel-title">💬 Chat</div>
-        <div id="chat-messages"></div>
-        <div class="chat-input-row">
-          <input id="chat-input" type="text" placeholder="Zpráva…" onkeydown="if(event.key==='Enter')sendChat()">
-          <button class="btn ghost" onclick="sendChat()">→</button>
-        </div>
-      </div>
-
-      <!-- Unit counts -->
-      <div id="unit-counts-bar">
-        <div class="panel-title">⚔ Armády</div>
-        <div id="unit-counts-content"></div>
-      </div>
-    </div>
   </div>
 
   <!-- Bottom bar: confirm button during placement only -->
@@ -474,43 +422,85 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
   </div>
 </div>
 
-<!-- ========== FORMATIONS MANAGER ========== -->
-<div id="forms-screen" class="screen">
-  <div id="top-bar">
-    <span class="phase">TVORBA FORMACE</span>
-    <span class="turn-banner" id="forms-title">—</span>
-    <span class="menu-btn" onclick="closeFormations()">← Lobby</span>
+<!-- ========== PERSISTENT COMMAND PANEL (lobby + formation editor + in-game) ========== -->
+<div id="right-panel" class="hidden">
+  <!-- Phase indicator (with background panel) -->
+  <div id="panel-phase">—</div>
+
+  <!-- Players bar -->
+  <div id="players-bar">
+    <div class="player-row" id="my-player-row">
+      <span class="player-dot my"></span>
+      <span class="player-name" id="my-player-name">—</span>
+      <span class="player-elo" id="my-player-elo"></span>
+      <span class="player-timer" id="my-player-timer"></span>
+    </div>
+    <div class="player-row" id="opp-player-row">
+      <span class="player-dot opp"></span>
+      <span class="player-name" id="opp-player-name">Soupeř</span>
+      <span class="player-timer" id="opp-player-timer"></span>
+    </div>
   </div>
-  <div id="game-body">
-    <div id="board-area"><canvas id="forms-canvas"></canvas></div>
-    <div id="right-panel">
-      <div class="panel-half">
-        <div class="panel-title">📛 Detaily formace</div>
-        <div class="panel-body" style="padding:14px">
-          <label style="font-size:11px;color:var(--text-dim)">Slot</label>
-          <select id="forms-slot" style="width:100%;padding:6px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);margin-bottom:8px">
-            <option value="1">1</option><option value="2">2</option>
-            <option value="3">3</option><option value="4">4</option>
-            <option value="5">5</option>
-          </select>
-          <label style="font-size:11px;color:var(--text-dim)">Název (max 12 znaků)</label>
-          <input id="forms-name" type="text" maxlength="12" placeholder="Např. Blitz" style="margin-top:2px">
-          <div style="margin-top:12px;display:flex;gap:6px">
-            <button class="btn primary" onclick="saveCurrentFormation()">💾 Uložit</button>
-            <button class="btn danger" onclick="deleteCurrentFormation()">🗑 Smazat</button>
-          </div>
-          <div id="forms-status" class="ok-msg"></div>
-        </div>
+
+  <!-- Unit info -->
+  <div id="info-bar">
+    <div class="panel-title">Vybraná jednotka</div>
+    <div id="info-content"><div class="hint">Najeď na jednotku</div></div>
+  </div>
+
+  <!-- Action section — swaps by phase -->
+  <div id="action-section">
+    <!-- Battle action buttons -->
+    <div id="battle-actions-panel">
+      <div class="sel-unit-info" id="sel-unit-label">Vyber vlastní jednotku</div>
+      <div class="action-row" style="padding:4px 8px;gap:4px">
+        <button class="btn primary" id="btn-move" onclick="setIntent('move')">🚶 Pohyb</button>
+        <button class="btn" id="btn-attack" onclick="setIntent('attack')">⚔ Útok</button>
       </div>
-      <div class="panel-half">
-        <div class="panel-title">⬢ Jednotky</div>
-        <div class="panel-body" id="forms-picker"></div>
+      <div class="action-row" style="padding:0 8px 4px;gap:4px">
+        <button class="btn" id="btn-special" onclick="setIntent('special')">✨ Speciál</button>
+        <button class="btn ghost" onclick="passTurn()">↷ Pas</button>
+        <button class="btn ghost" id="btn-speedup" onclick="requestSpeedup()" style="display:none">⏩</button>
+      </div>
+    </div>
+    <!-- Placement controls -->
+    <div id="placement-bottom-panel">
+      <div class="panel-title">🎖 Formace</div>
+      <div id="form-loader"></div>
+      <div class="panel-title">⬢ Jednotky</div>
+      <div id="unit-picker"></div>
+      <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-top:1px solid var(--border-dim)">
+        <button class="btn ghost" style="font-size:10px;padding:4px 6px" onclick="clearPlacement()">🗑</button>
+        <button class="btn ghost" style="font-size:10px;padding:4px 6px" onclick="randomPlace()">🎲</button>
+        <button class="btn ghost" style="font-size:10px;padding:4px 6px" onclick="savePresetDialog()">💾</button>
+        <span id="hexes-filled" style="margin-left:auto;font-size:10px;color:var(--text-dim)">—/51</span>
       </div>
     </div>
   </div>
-  <div id="action-bar">
-    <span style="flex:1;color:var(--text-dim);font-size:11px">Klikni na hex ⇒ vyber jednotku ⇒ umístí se. Pak ulož.</span>
-    <span id="forms-filled" style="color:var(--text-dim);font-size:11px">— / 51</span>
+
+  <!-- Turn indicator (no background panel per spec — slide 1) -->
+  <div id="turn-indicator" class="neutral">—</div>
+
+  <!-- Log -->
+  <div id="log-bar">
+    <div class="panel-title">📜 Log</div>
+    <div id="log-panel"></div>
+  </div>
+
+  <!-- Chat -->
+  <div id="chat-bar">
+    <div class="panel-title">💬 Chat</div>
+    <div id="chat-messages"></div>
+    <div class="chat-input-row">
+      <input id="chat-input" type="text" placeholder="Zpráva…" onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="btn ghost" onclick="sendChat()">→</button>
+    </div>
+  </div>
+
+  <!-- Unit counts -->
+  <div id="unit-counts-bar">
+    <div class="panel-title">⚔ Armády</div>
+    <div id="unit-counts-content"></div>
   </div>
 </div>
 
@@ -524,7 +514,7 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
   </div>
   <div id="game-body">
     <div id="board-area"><canvas id="replay-canvas"></canvas></div>
-    <div id="right-panel">
+    <div id="replay-panel">
       <div class="panel-half">
         <div class="panel-title">📋 Události</div>
         <div class="panel-body" id="replay-events"></div>
@@ -641,7 +631,7 @@ h3{font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-
       </p>
     </div>
     <div class="lobby-card">
-      <h2>Jednotky (v1.0)</h2>
+      <h2>Jednotky (v1.2)</h2>
       <table class="admin-table">
         <thead><tr><th>Zkratka</th><th>Jméno</th><th>Síla</th><th>Pohyb</th><th>Zvláštnost</th></tr></thead>
         <tbody id="manual-units-body"></tbody>
@@ -789,6 +779,46 @@ async function adminApi(method, path, body){
 function show(screenId){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(screenId).classList.add('active');
+  setPanelForScreen(screenId);
+}
+
+// Persistent right-panel: visibility + mode per current screen.
+// Spec: panel is visible on lobby, formation editor, and in-game.
+function setPanelForScreen(screenId){
+  const panel = document.getElementById('right-panel');
+  const body  = document.body;
+  body.classList.remove('with-panel');
+  panel.classList.add('hidden');
+  panel.classList.remove('mode-lobby','mode-forms','mode-game');
+
+  if(screenId === 'lobby-screen'){
+    body.classList.add('with-panel');
+    panel.classList.remove('hidden');
+    panel.classList.add('mode-lobby');
+    renderLobbyPanel();
+  }else if(screenId === 'game-screen'){
+    body.classList.add('with-panel');
+    panel.classList.remove('hidden');
+    if(formsGameId && currentGameId === formsGameId){
+      panel.classList.add('mode-forms');
+      document.getElementById('panel-phase').textContent = 'TVORBA FORMACE';
+    }else{
+      panel.classList.add('mode-game');
+      // panel-phase text set by updateUI() once gameState arrives
+    }
+  }
+  // auth/admin/manual/replay/bots: panel stays hidden
+}
+
+function renderLobbyPanel(){
+  document.getElementById('panel-phase').textContent = 'LOBBY';
+  document.getElementById('my-player-name').textContent = me ? me.username : '—';
+  const elo = (me && me.stats) ? me.stats.elo : '';
+  document.getElementById('my-player-elo').textContent = elo !== '' ? ('ELO ' + elo) : '';
+  // Clear any stale game-state UI
+  document.getElementById('opp-player-name').textContent = 'Soupeř';
+  const ti = document.getElementById('turn-indicator');
+  ti.className = 'neutral'; ti.textContent = '—';
 }
 function showAuthTab(t){
   document.getElementById('tab-login').classList.toggle('active', t==='login');
@@ -957,6 +987,20 @@ function updateUI(){
   if(!gameState) return;
   const isPlacement = gameState.phase === 'placement';
 
+  // Phase indicator (with background — distinct from no-background turn-indicator)
+  const ph = document.getElementById('panel-phase');
+  if(ph){
+    if(formsGameId && currentGameId === formsGameId){
+      ph.textContent = 'TVORBA FORMACE';
+    }else if(gameState.phase === 'placement'){
+      ph.textContent = 'ROZESTAVENÍ';
+    }else if(gameState.phase === 'battle'){
+      ph.textContent = `BOJ – TAH ${gameState.turn}`;
+    }else if(gameState.phase === 'finished'){
+      ph.textContent = 'KONEC HRY';
+    }
+  }
+
   // Show/hide right-panel action sections
   const bap = document.getElementById('battle-actions-panel');
   const pbp = document.getElementById('placement-bottom-panel');
@@ -970,12 +1014,12 @@ function updateUI(){
   const mp = document.getElementById('mobile-picker');
   mp.classList.toggle('show', isPlacement && !gameState.placement_confirmed[myPlayer]);
 
-  // Turn indicator (right panel, no background)
+  // Turn indicator (right panel, no background per spec — "Jsi na tahu" / "Tah soupeře")
   const ti = document.getElementById('turn-indicator');
   ti.classList.remove('your-turn','opp-turn','neutral');
   if(gameState.phase === 'battle'){
     const isMyTurn = gameState.current_player === myPlayer;
-    ti.textContent = (isMyTurn ? 'Jsi na tahu' : 'Tah soupeře') + ` – Tah ${gameState.turn}`;
+    ti.textContent = isMyTurn ? 'Jsi na tahu' : 'Tah soupeře';
     ti.classList.add(isMyTurn ? 'your-turn' : 'opp-turn');
     if(isMyTurn && gameState.turn !== _lastTurnSoundTurn){ _lastTurnSoundTurn = gameState.turn; SFX.turn(); }
   }else if(gameState.phase === 'placement'){
@@ -1302,6 +1346,9 @@ function refreshTokens(){
     accent2: _css('--accent-2') || '#ff3d3d',
     gold: _css('--gold') || '#ffd700',
     textDim: _css('--text-dim') || '#5a6a7a',
+    infCorruptor: _css('--inf-corruptor') || '#c0392b',
+    infRevealer:  _css('--inf-revealer')  || '#f1c40f',
+    infTrainer:   _css('--inf-trainer')   || '#27c463',
   };
 }
 function levelColorSolid(level){
@@ -1356,9 +1403,179 @@ function rgba(hex, alpha){
   return `rgba(${(n>>16)&0xff},${(n>>8)&0xff},${n&0xff},${alpha})`;
 }
 
+// ============================================================
+// INFLUENCE OVERLAYS (v1.2) — koruptor / odhalení / trenér
+// Each "vliv" maps to a color + dot indicator drawn at the top
+// of every hex within that unit's effective range. Hidden enemy
+// units don't expose their AOE (their type is "unknown").
+// ============================================================
+const INFLUENCE_TYPE_MAP = {
+  corruptor:    'corruptor',
+  trainer:      'trainer',
+  recon_drone:  'revealer',
+  attack_drone: 'revealer',
+};
+function getInfluenceColor(kind){
+  if(kind === 'corruptor') return TOKENS.infCorruptor || '#c0392b';
+  if(kind === 'trainer')   return TOKENS.infTrainer   || '#27c463';
+  if(kind === 'revealer')  return TOKENS.infRevealer  || '#f1c40f';
+  return '#888';
+}
+function _buildBoardCellSet(){
+  const s = new Set();
+  if(!gameState || !gameState.board) return s;
+  for(const c of gameState.board){ s.add(`${c.col},${c.row}`); }
+  return s;
+}
+function hexCellsInRange(c0, r0, range, cellSet){
+  const result = [[c0, r0, 0]];
+  if(range <= 0) return result;
+  const visited = new Set([`${c0},${r0}`]);
+  let frontier = [[c0, r0]];
+  for(let d=1; d<=range; d++){
+    const next = [];
+    for(const [c, r] of frontier){
+      for(const [nc, nr] of hexNeighbors(c, r)){
+        const k = `${nc},${nr}`;
+        if(visited.has(k)) continue;
+        if(!cellSet.has(k)) continue;
+        visited.add(k);
+        next.push([nc, nr]);
+        result.push([nc, nr, d]);
+      }
+    }
+    frontier = next;
+  }
+  return result;
+}
+function computeInfluenceMap(){
+  const m = new Map();
+  if(!gameState) return m;
+  const cellSet = _buildBoardCellSet();
+  const all = [...(gameState.my_units||[]), ...(gameState.enemy_units||[])];
+  for(const u of all){
+    if(!u.placed || !u.alive) continue;
+    if(u.type === 'unknown') continue;
+    const kind = INFLUENCE_TYPE_MAP[u.type];
+    if(!kind) continue;
+    const range = Math.max(0, u.effective_range|0);
+    const cells = hexCellsInRange(u.col, u.row, range, cellSet);
+    for(const [c, r, d] of cells){
+      const k = `${c},${r}`;
+      let entry = m.get(k);
+      if(!entry){ entry = { kinds: new Set(), hosts: new Set() }; m.set(k, entry); }
+      entry.kinds.add(kind);
+      if(d === 0) entry.hosts.add(kind);
+    }
+  }
+  return m;
+}
+function drawInfluenceMarkers(p, entry){
+  const order = ['corruptor', 'revealer', 'trainer'];
+  const present = order.filter(k => entry.kinds.has(k));
+  if(!present.length) return;
+  const dotR = Math.max(2, HEX_SIZE * 0.14);
+  const gap  = dotR * 2.1;
+  const startX = p.x - ((present.length - 1) * gap) / 2;
+  const y = p.y - HEX_SIZE * 0.72;
+  for(let i = 0; i < present.length; i++){
+    const kind = present[i];
+    const x = startX + i * gap;
+    const isHost = entry.hosts.has(kind);
+    ctx.beginPath();
+    ctx.arc(x, y, dotR, 0, Math.PI*2);
+    ctx.fillStyle = getInfluenceColor(kind);
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#000';
+    ctx.stroke();
+    if(isHost){
+      ctx.beginPath();
+      ctx.arc(x, y, dotR*0.45, 0, Math.PI*2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+    }
+  }
+}
+function drawLevelMarker(p, level){
+  // Per-level inner pattern in addition to the brightness gradient.
+  // L0 stays clean. L1 → one inner hex outline. L2 → two inner hex outlines.
+  if(!level) return;
+  const stroke = rgba(TOKENS.textDim, 0.5);
+  drawHex(p.x, p.y, HEX_SIZE * 0.62, null, stroke, 1);
+  if(level >= 2){
+    drawHex(p.x, p.y, HEX_SIZE * 0.36, null, stroke, 1);
+  }
+}
+
+// Board column/row perimeter labels (slide 1 spec: 1–16 along each axis).
+// Columns labeled by model col (1..15 typically); rows labeled 1..17 from top.
+function drawBoardLabels(){
+  if(!gameState || !gameState.board) return;
+  const fontSize = Math.max(9, Math.floor(HEX_SIZE * 0.42));
+  ctx.save();
+  ctx.font = `${fontSize}px ${getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || 'monospace'}`;
+  ctx.fillStyle = TOKENS.textDim || '#5a6a7a';
+  ctx.textBaseline = 'middle';
+  const w = Math.sqrt(3) * HEX_SIZE;
+
+  // Column labels (top edge — fixed y just above the topmost cells)
+  const cols = new Set();
+  let topViewRow = Infinity;
+  gameState.board.forEach(c => {
+    cols.add(c.col);
+    const vr = (myPlayer === 1) ? (16 - c.row) : c.row;
+    if(vr < topViewRow) topViewRow = vr;
+  });
+  const labelY = Math.max(fontSize * 0.7, boardOffset.y - HEX_SIZE * 1.0);
+  ctx.textAlign = 'center';
+  cols.forEach(col => {
+    const x = (col - 4) * w + boardOffset.x;
+    ctx.fillText(String(col), x, labelY);
+  });
+
+  // Row labels (left edge — placed left of leftmost cell in each viewRow)
+  const leftByVR = {};
+  gameState.board.forEach(cell => {
+    const vr = (myPlayer === 1) ? (16 - cell.row) : cell.row;
+    if(!leftByVR[vr] || leftByVR[vr].col > cell.col) leftByVR[vr] = cell;
+  });
+  ctx.textAlign = 'right';
+  Object.entries(leftByVR).forEach(([vr, cell]) => {
+    const p = hexCenter(cell.col, cell.row);
+    ctx.fillText(String(parseInt(vr) + 1), p.x - HEX_SIZE * 1.0, p.y);
+  });
+
+  ctx.restore();
+}
+
+// Chat stub — no backend yet, so messages render locally for the current session.
+function sendChat(){
+  const inp = document.getElementById('chat-input');
+  const txt = (inp.value || '').trim();
+  if(!txt) return;
+  const log = document.getElementById('chat-messages');
+  const line = document.createElement('div');
+  line.style.cssText = 'padding:1px 0';
+  const sender = (me && me.username) ? me.username : 'Já';
+  line.innerHTML = `<span style="color:var(--p1-flag)">${sender}:</span> ${txt.replace(/[<>&]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;'})[c])}`;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+  inp.value = '';
+}
+
 function draw(){
   if(!gameState || !canvas) return;
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Pre-compute occupied cells + influence map (used by overlay passes below)
+  const _occupied = new Set();
+  for(const u of (gameState.my_units||[])){
+    if(u.placed && u.alive) _occupied.add(`${u.col},${u.row}`);
+  }
+  for(const u of (gameState.enemy_units||[])){
+    if(u.placed && u.alive) _occupied.add(`${u.col},${u.row}`);
+  }
+  const _influenceMap = computeInfluenceMap();
   // Board cells
   gameState.board.forEach(cell=>{
     const {col,row,zone_type,zone_player,zone_level,is_mountain} = cell;
@@ -1369,6 +1586,9 @@ function draw(){
       ctx.fillStyle = TOKENS.textDim; ctx.font = `${HEX_SIZE}px sans-serif`;
       ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillText('▲', p.x, p.y);
+    } else if(zone_type === 'level' && !_occupied.has(`${col},${row}`)){
+      // Per-level inner pattern (only on empty level hexes so units stay readable)
+      drawLevelMarker(p, zone_level);
     }
     if(zone_type === 'citadel'){
       ctx.fillStyle = TOKENS.gold; ctx.font = `bold ${HEX_SIZE*0.9}px sans-serif`;
@@ -1376,6 +1596,8 @@ function draw(){
       ctx.fillText('⚑', p.x, p.y);
     }
   });
+
+  drawBoardLabels();
 
   const sel = getSelectedUnit();
 
@@ -1434,6 +1656,17 @@ function draw(){
     if(!u.placed || !u.alive) return;
     drawUnit(u);
   });
+
+  // Influence overlays (v1.2) — drawn last so the markers are always visible
+  // even on top of unit graphics. Each "vliv" gets a small colored dot at the
+  // top of every hex within the source unit's effective range.
+  if(_influenceMap.size){
+    _influenceMap.forEach((entry, key) => {
+      const [c, r] = key.split(',').map(Number);
+      const p = hexCenter(c, r);
+      drawInfluenceMarkers(p, entry);
+    });
+  }
 
   // Last-move trail (fades over ~2s)
   if(lastMoveMarker){
@@ -1773,7 +2006,6 @@ function exitFormations(){
   formsGameId = null;
   exitGame();
 }
-function closeFormations(){ exitFormations(); }
 
 // ============================================================
 // REPLAYS

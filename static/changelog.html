@@ -2,6 +2,48 @@
 <style>body{background:#07080f;color:#c8d6e5;font-family:monospace;padding:20px;max-width:800px;margin:0 auto}h1{color:#00e5ff}h2{color:#ffd700;border-bottom:1px solid #1a2744;padding-bottom:4px}h3{color:#00ff88}li{margin:2px 0}</style>
 </head><body>
 <h1>CHANGELOG – Marshal &amp; Spy</h1>
+<h2>2026-04-29 – v1.2 – Persistent right-hand command panel (ITI-119)</h2>
+<h3>Layout</h3>
+<li>Right-hand command panel is a top-level fixed element, visible across <b>lobby</b>, <b>formation editor</b>, and <b>in-game</b></li>
+<li>New "Fáze hry" indicator at the top (with background): LOBBY / TVORBA FORMACE / ROZESTAVENÍ / BOJ – TAH N / KONEC HRY</li>
+<li>"Jsi na tahu" / "Tah soupeře" label keeps its no-background styling per spec</li>
+<li>Panel adapts per mode (lobby, formation editor, in-game) — hides irrelevant sections per screen</li>
+<h3>Board</h3>
+<li>Perimeter column/row labels (1–N along top, 1–17 down left side, from player's perspective)</li>
+<h3>Cleanup</h3>
+<li>Removed dead forms-screen markup (formation editor has reused game-screen since v1.0)</li>
+<li>Renamed replay's internal panel to #replay-panel (no more duplicate IDs)</li>
+<li>Added local-only chat stub so the chat input no longer throws</li>
+<h2>2026-04-29 – v1.2 – Per-influence hex graphics (ITI-120)</h2>
+<h3>Hex board rendering</h3>
+<li>New "vliv" indicator on every hex within an influence-special unit's range:</li>
+<li>&nbsp;&nbsp;Koruptor → red dot, Odhalení (recon/attack drone) → yellow dot, Trenér → green dot</li>
+<li>Up to three indicators stack at the top of each affected hex (corruptor | revealer | trainer)</li>
+<li>The unit's own hex (the source) gets a bright inner pip on its dot to mark it as the host</li>
+<li>Hidden enemy influence units do <b>not</b> expose their AOE (type stays "unknown" until revealed)</li>
+<li>New per-level inner pattern on empty level hexes (in addition to the brightness gradient): L0 clean, L1 one inner hex, L2 two inner hexes</li>
+<h3>Tokens / theme</h3>
+<li>New CSS custom properties: --inf-corruptor, --inf-revealer, --inf-trainer (cached on canvas via refreshTokens)</li>
+<h3>Files</h3>
+<li>static/index.html — added INFLUENCE_TYPE_MAP, computeInfluenceMap(), hexCellsInRange(), drawInfluenceMarkers(), drawLevelMarker(); integrated into draw()</li>
+<h2>2026-04-29 – v1.1 – UI overhaul + bug fixes per board spec (ITI-117)</h2>
+<h3>UI / layout</h3>
+<li>Persistent right-hand command panel across lobby, formation, and in-game</li>
+<li>Hex restyle: green=player, orange=opponent, dark red=citadel; level brightness L0→L2 (lightest to darkest)</li>
+<li>Logs colored by side (opponent orange, player green) and prefixed with player name</li>
+<li>Open games list now shows joinable state explicitly</li>
+<li>"Your turn / opponent's turn" label rendered without background panel</li>
+<h3>Bug fixes</h3>
+<li>Trainer can move and actually trains (boost/conversion)</li>
+<li>Sound effects restored</li>
+<li>Removed strange line on top of the hex</li>
+<li>Mine field reclassified as ground unit (was special)</li>
+<li>Renamed Terminator → Cyborg</li>
+<li>Stale phase-badge / turn-banner refs in openFormations() patched to turn-indicator</li>
+<h3>AI</h3>
+<li>Co-evolution tuning over 15 sample games to break the "single piece back-and-forth" loop</li>
+<h3>Deploy</h3>
+<li>Dockerfile + .dockerignore for container deployment</li>
 <h2>2026-04-21 – v1.0 (WIP) – Complete ruleset overhaul (engine + AI + API skeleton)</h2>
 <h3>Breaking ruleset changes (v0.x saves rejected)</h3>
 <li>Assassin removed; Hacker added (auto-kills Terminator in melee)</li>

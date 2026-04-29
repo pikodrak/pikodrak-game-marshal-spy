@@ -1,5 +1,71 @@
 # CHANGELOG – Marshal & Spy
 
+## 2026-04-29 – v1.2 – Persistent right-hand command panel (ITI-119)
+
+### Layout
+- Right-hand command panel is now a top-level fixed element, visible across **lobby**, **formation editor**, and **in-game** (so the player never has to hunt for controls)
+- New `Fáze hry` indicator at the top of the panel (with background) — shows `LOBBY` / `TVORBA FORMACE` / `ROZESTAVENÍ` / `BOJ – TAH N` / `KONEC HRY`
+- The `Jsi na tahu` / `Tah soupeře` label keeps its no-background styling per spec
+- Panel adapts per mode:
+  - **Lobby** — player avatar + ELO badge; game-only sections (selected unit, actions, log, unit counts, chat) hidden
+  - **Formation editor** — player avatar + selected unit + deployable/deployed counts (via unit picker); log/chat/opponent hidden
+  - **In-game** — full panel: both avatars, selected unit, action buttons, turn indicator, log, chat, unit counts
+
+### Board
+- Perimeter labels: column numbers along the top edge, row numbers (1–17 from the player's perspective) along the left edge
+
+### Cleanup
+- Removed dead `forms-screen` markup and orphan `closeFormations()` (the formations editor reuses `game-screen` since v1.0)
+- Renamed replay screen's internal `#right-panel` to `#replay-panel` to avoid duplicate IDs
+- Added a local-only chat stub so the chat input no longer throws (no chat backend yet)
+
+### Files
+- `static/index.html` — pulled `#right-panel` out of `#game-screen`, made it `position:fixed`, body gets `with-panel` padding; added `setPanelForScreen()`, `renderLobbyPanel()`, `drawBoardLabels()`, `sendChat()`
+
+## 2026-04-29 – v1.2 – Per-influence hex graphics (ITI-120)
+
+### Hex board rendering
+- New "vliv" indicator on every hex within an influence-special unit's effective range:
+  - **Koruptor** → red dot, **Odhalení** (recon/attack drone) → yellow dot, **Trenér** → green dot
+  - Up to three indicators stack at the top of each affected hex (corruptor | revealer | trainer)
+  - The unit's own hex (the source) gets a bright inner pip on its dot to mark it as the host
+- Hidden enemy influence units do **not** expose their AOE — their type stays `unknown` until revealed
+- New per-level inner pattern on empty level hexes (in addition to the existing brightness gradient):
+  L0 stays clean, L1 draws one inner hex outline, L2 draws two — readable even when reskinned
+
+### Tokens / theme
+- New CSS custom properties: `--inf-corruptor`, `--inf-revealer`, `--inf-trainer`
+- Cached on canvas via `refreshTokens()` so re-skins update without a reload
+
+### Files
+- `static/index.html` — added `INFLUENCE_TYPE_MAP`, `computeInfluenceMap()`, `hexCellsInRange()`,
+  `drawInfluenceMarkers()`, `drawLevelMarker()`; integrated into `draw()`
+
+## 2026-04-29 – v1.1 – UI overhaul + bug fixes per board spec (ITI-117)
+
+### UI / layout
+- Persistent right-hand command panel: avatars + countdown, selected unit (name/desc/stats/image),
+  Move/Attack/Special/Pass buttons, logs, chat, phase, units placed/destroyed — visible on lobby,
+  formation, and in-game
+- Hex restyle: green=player, orange=opponent, dark red=citadel; level brightness L0→L2 (lightest to darkest)
+- Logs: opponent orange, player green, always prefixed with `<player_name>:`
+- Open games list now shows joinable state explicitly
+- "Your turn / opponent's turn" label without background panel
+
+### Bug fixes
+- Trainer can now be moved and actually trains (boost/conversion)
+- Sound effects restored
+- Removed the strange line on top of the hex
+- Mine field reclassified as ground unit (was special)
+- Renamed `Terminator` → `Cyborg`
+- Stale `phase-badge` / `turn-banner` references in `openFormations()` patched to `turn-indicator`
+
+### AI
+- Co-evolution tuning over 15 sample games to break the "single piece back-and-forth" loop
+
+### Deploy
+- `Dockerfile` + `.dockerignore` for container deployment
+
 ## 2026-04-21 – v1.0 (WIP) – Complete ruleset overhaul (engine + AI + API skeleton)
 
 ### Brand new ruleset (breaking change – v0.x saves are rejected)
