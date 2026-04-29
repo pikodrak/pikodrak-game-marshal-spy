@@ -1745,8 +1745,8 @@ async function openFormations(){
   currentGameId = formsGameId;
   myPlayer = 1;
   show('game-screen');  // reuse game-screen for the board
-  document.getElementById('phase-badge').textContent = 'EDITOR FORMACÍ';
-  document.getElementById('turn-banner').textContent = '(nic se nehraje, jen ukládáš rozestavení)';
+  const _ti = document.getElementById('turn-indicator');
+  if(_ti){ _ti.className='neutral'; _ti.textContent='EDITOR FORMACÍ – Rozestav a ulož'; }
   document.getElementById('action-bar').innerHTML = `
     <button class="btn ghost" onclick="clearPlacement()">🗑 Vymazat</button>
     <button class="btn ghost" onclick="randomPlace()">🎲 Náhodně</button>
